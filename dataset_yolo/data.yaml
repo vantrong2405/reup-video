@@ -1,0 +1,7 @@
+path: /data/dataset_yolo
+train: train/images
+val: valid/images
+
+nc: 1
+names:
+  0: logo
