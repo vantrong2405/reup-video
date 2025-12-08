@@ -28,10 +28,8 @@ services:
       - ./tmp:/tmp
       - ./downloads:/home/node/downloads
       - ./rclone-config:/home/node/.config/rclone
-      - ./scripts:/data/scripts
       - ./models:/data/models
       - ./dataset_yolo:/data/dataset_yolo
-      - ./image_logo.png:/data/image_logo.png
       - ./output:/data/output
     depends_on:
       - redis
@@ -59,10 +57,8 @@ services:
       - ./tmp:/tmp
       - ./downloads:/home/node/downloads
       - ./rclone-config:/home/node/.config/rclone
-      - ./scripts:/data/scripts
       - ./models:/data/models
       - ./dataset_yolo:/data/dataset_yolo
-      - ./image_logo.png:/data/image_logo.png
       - ./output:/data/output
     depends_on:
       - redis
