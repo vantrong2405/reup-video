@@ -3,3 +3,5 @@
 /downloads
 /rclone-config
 /data
+__pycache__/
+*.pyc
