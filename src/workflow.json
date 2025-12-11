@@ -182,7 +182,22 @@
     },
     {
       "parameters": {
-        "command": "=#!/bin/bash\nset -e\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\n\nif [ ! -f \"$VIDEO_INPUT\" ]; then\n  echo \"Error: Video file not found: $VIDEO_INPUT\" >&2\n  exit 1\nfi\n\nif [ ! -f \"$LOGO_INPUT\" ]; then\n  if [ -z \"$NEW_LOGO_URL\" ] || [ \"$NEW_LOGO_URL\" = \"\" ]; then\n    echo \"Error: Logo file not found and new_logo_url is empty: $LOGO_INPUT\" >&2\n    exit 1\n  fi\n  \n  echo \"Downloading logo from: $NEW_LOGO_URL\"\n  \n  if echo \"$NEW_LOGO_URL\" | grep -q \"drive.google.com\"; then\n    FILE_ID=\"\"\n    FILE_ID=$(echo \"$NEW_LOGO_URL\" | sed -n 's/.*\\/d\\/\\([^\\/]*\\)\\/.*/\\1/p' | head -1)\n    if [ -z \"$FILE_ID\" ]; then\n      FILE_ID=$(echo \"$NEW_LOGO_URL\" | sed -n 's/.*[?&]id=\\([^&]*\\).*/\\1/p' | head -1)\n    fi\n    if [ -z \"$FILE_ID\" ]; then\n      if echo \"$NEW_LOGO_URL\" | grep -qE '^[a-zA-Z0-9_-]+$'; then\n        FILE_ID=\"$NEW_LOGO_URL\"\n      fi\n    fi\n    if [ -n \"$FILE_ID\" ]; then\n      NEW_LOGO_URL=\"https://drive.google.com/uc?export=download&id=${FILE_ID}\"\n    fi\n  fi\n  \n  wget -O \"$LOGO_INPUT\" \"$NEW_LOGO_URL\" || {\n    echo \"Error: Failed to download logo from: $NEW_LOGO_URL\" >&2\n    exit 1\n  }\n  \n  if [ ! -f \"$LOGO_INPUT\" ] || [ ! -s \"$LOGO_INPUT\" ]; then\n    echo \"Error: Downloaded logo file is empty or not found: $LOGO_INPUT\" >&2\n    exit 1\n  fi\nfi\n\nDETECT_JSON=$(echo \"$DETECT_OUTPUT\" | grep -o '\\{[^}]*\"logos\"[^}]*\\}' | head -1 || echo '{\"logos\":[],\"count\":0}')\n\nif command -v jq >/dev/null 2>&1; then\n  LOGO_COUNT=$(echo \"$DETECT_JSON\" | jq -r '.count // 0')\n  if [ \"$LOGO_COUNT\" -gt 0 ]; then\n    X=$(echo \"$DETECT_JSON\" | jq -r '.logos[0].x // 0')\n    Y=$(echo \"$DETECT_JSON\" | jq -r '.logos[0].y // 0')\n    WIDTH=$(echo \"$DETECT_JSON\" | jq -r '.logos[0].width // 0')\n    HEIGHT=$(echo \"$DETECT_JSON\" | jq -r '.logos[0].height // 0')\n    OLD_LOGO_FOUND=\"true\"\n  else\n    X=0\n    Y=0\n    WIDTH=0\n    HEIGHT=0\n    OLD_LOGO_FOUND=\"false\"\n  fi\nelse\n  if echo \"$DETECT_JSON\" | grep -q '\"count\":[1-9]'; then\n    X=$(echo \"$DETECT_JSON\" | grep -o '\"x\":[0-9]*' | head -1 | grep -o '[0-9]*' || echo '0')\n    Y=$(echo \"$DETECT_JSON\" | grep -o '\"y\":[0-9]*' | head -1 | grep -o '[0-9]*' || echo '0')\n    WIDTH=$(echo \"$DETECT_JSON\" | grep -o '\"width\":[0-9]*' | head -1 | grep -o '[0-9]*' || echo '0')\n    HEIGHT=$(echo \"$DETECT_JSON\" | grep -o '\"height\":[0-9]*' | head -1 | grep -o '[0-9]*' || echo '0')\n    OLD_LOGO_FOUND=\"true\"\n  else\n    X=0\n    Y=0\n    WIDTH=0\n    HEIGHT=0\n    OLD_LOGO_FOUND=\"false\"\n  fi\nfi\n\nVIDEO_WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width  -of csv=p=0 \"$VIDEO_INPUT\")\nVIDEO_HEIGHT=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 \"$VIDEO_INPUT\")\nVIDEO_WIDTH=${VIDEO_WIDTH:-0}\nVIDEO_HEIGHT=${VIDEO_HEIGHT:-0}\n\nOLD_LOGO_OK=false\nif [ \"$OLD_LOGO_FOUND\" = \"true\" ] && [ \"$WIDTH\" -gt 0 ] && [ \"$HEIGHT\" -gt 0 ] && [ \"$X\" -ge 0 ] && [ \"$Y\" -ge 0 ]; then\n  if [ \"$VIDEO_WIDTH\" -gt 0 ] && [ \"$VIDEO_HEIGHT\" -gt 0 ]; then\n    if [ $((X + WIDTH)) -le \"$VIDEO_WIDTH\" ] && [ $((Y + HEIGHT)) -le \"$VIDEO_HEIGHT\" ]; then\n      OLD_LOGO_OK=true\n    fi\n  else\n    OLD_LOGO_OK=true\n  fi\nfi\n\nif [ \"$OLD_LOGO_OK\" = \"true\" ]; then\n    EXPAND=15\n  DELOGO_X=$((X - EXPAND))\n  DELOGO_Y=$((Y - EXPAND))\n  DELOGO_W=$((WIDTH + EXPAND * 2))\n  DELOGO_H=$((HEIGHT + EXPAND * 2))\n\n  if [ \"$DELOGO_X\" -lt 0 ]; then DELOGO_X=0; fi\n  if [ \"$DELOGO_Y\" -lt 0 ]; then DELOGO_Y=0; fi\n\n  if [ \"$VIDEO_WIDTH\" -gt 0 ] && [ $((DELOGO_X + DELOGO_W)) -gt \"$VIDEO_WIDTH\" ]; then\n    DELOGO_W=$((VIDEO_WIDTH - DELOGO_X))\n  fi\n  if [ \"$VIDEO_HEIGHT\" -gt 0 ] && [ $((DELOGO_Y + DELOGO_H)) -gt \"$VIDEO_HEIGHT\" ]; then\n    DELOGO_H=$((VIDEO_HEIGHT - DELOGO_Y))\n  fi\n\n  SCALE_WIDTH_NUM=3\n  SCALE_WIDTH_DEN=2\n  SCALE_HEIGHT_NUM=12\n  SCALE_HEIGHT_DEN=5\n  NEW_WIDTH=$((WIDTH * SCALE_WIDTH_NUM / SCALE_WIDTH_DEN))\n  NEW_HEIGHT=$((HEIGHT * SCALE_HEIGHT_NUM / SCALE_HEIGHT_DEN))\n\n  OFFSET_X=$(((NEW_WIDTH - WIDTH) / 2))\n  OFFSET_Y=$(((NEW_HEIGHT - HEIGHT) / 2))\n  NEW_X=$((X - OFFSET_X))\n  NEW_Y=$((Y - OFFSET_Y))\n\n  if [ \"$NEW_X\" -lt 0 ]; then NEW_X=0; fi\n  if [ \"$NEW_Y\" -lt 0 ]; then NEW_Y=0; fi\n\n  nice -n 10 ffmpeg -y \\\n    -i \"$VIDEO_INPUT\" \\\n    -i \"$LOGO_INPUT\" \\\n    -filter_complex \"[0:v]delogo=x=${DELOGO_X}:y=${DELOGO_Y}:w=${DELOGO_W}:h=${DELOGO_H}[v0];[v0]drawbox=x=${X}:y=${Y}:w=${WIDTH}:h=${HEIGHT}:color=black@0.98:t=fill[v1];[1:v]scale=${NEW_WIDTH}:${NEW_HEIGHT}[logo];[v1][logo]overlay=${NEW_X}:${NEW_Y}[v]\" \\\n    -map \"[v]\" -map 0:a? \\\n    -c:v libx264 -preset veryfast -crf 25 \\\n    -c:a copy \\\n    \"$OUTPUT_FILE\"\nelse\n  DEFAULT_LOGO_WIDTH=220\n  DEFAULT_LOGO_HEIGHT=110\n  PADDING=10\n\n  nice -n 10 ffmpeg -y \\\n    -i \"$VIDEO_INPUT\" \\\n    -i \"$LOGO_INPUT\" \\\n    -filter_complex \"[1:v]scale=${DEFAULT_LOGO_WIDTH}:${DEFAULT_LOGO_HEIGHT}[logo];[0:v][logo]overlay=W-w-${PADDING}:${PADDING}[v]\" \\\n    -map \"[v]\" -map 0:a? \\\n    -c:v libx264 -preset veryfast -crf 25 \\\n    -c:a copy \\\n    \"$OUTPUT_FILE\"\nfi\n\nif [ ! -f \"$OUTPUT_FILE\" ]; then\n  echo \"Error: Output file not created!\" >&2\n  exit 1\nfi"
+        "command": "=export PYTHONPATH=$PYTHONPATH:/data/src\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\n# Dynamic Configs\nFLIP=\"{{ $('Get Video Information').first().json.flip ? '--flip' : '' }}\"\nZOOM=\"{{ $('Get Video Information').first().json.zoom || 1.0 }}\"\nBRIGHTNESS=\"{{ $('Get Video Information').first().json.brightness || 0.0 }}\"\nSATURATION=\"{{ $('Get Video Information').first().json.saturation || 1.0 }}\"\nHUE=\"{{ $('Get Video Information').first().json.hue || 0.0 }}\"\nBG_MUSIC=\"{{ $('Get Video Information').first().json.background_music_url || '' }}\"\nREMOVE_TEXT=\"{{ $('Get Video Information').first().json.remove_text ? '--remove_text' : '' }}\"\nAI_DUBBING=\"{{ $('Get Video Information').first().json.ai_dubbing ? '--ai_dubbing' : '' }}\"\nGEMINI_KEY=\"{{ $('Get Video Information').first().json.gemini_key || '' }}\"\nOPENAI_KEY=\"{{ $('Get Video Information').first().json.openai_key || '' }}\"\nTTS_VOICE=\"{{ $('Get Video Information').first().json.tts_voice || '' }}\"\nFILTER_NSFW=\"{{ $('Get Video Information').first().json.filter_nsfw ? '--filter_nsfw' : '' }}\"\n\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\n# Download Music if provided\nMUSIC_ARG=\"\"\nif [ -n \"$BG_MUSIC\" ]; then\n  MUSIC_FILE=\"/home/node/downloads/music_${VIDEO_ID}.mp3\"\n  wget -O \"$MUSIC_FILE\" \"$BG_MUSIC\"\n  MUSIC_ARG=\"--background_music $MUSIC_FILE\"\nfi\n\npython3 /data/src/controller/video_controller.py pipeline \\\n  \"$VIDEO_INPUT\" \\\n  \"$LOGO_INPUT\" \\\
+  \"$DETECT_OUTPUT\" \\\
+  \"$OUTPUT_FILE\" \\\
+  --new_logo_url \"$NEW_LOGO_URL\" \\\
+  --intro_url \"$INTRO_VIDEO_URL\" \\\
+  --work_dir \"$OUTPUT_DIR\" \\\
+  $FLIP \\\
+  --zoom \"$ZOOM\" \\\
+  --brightness \"$BRIGHTNESS\" \\\
+  --saturation \"$SATURATION\" \\\
+  --hue \"$HUE\" \\\
+  $REMOVE_TEXT \\\
+  $AI_DUBBING \\\
+  --gemini_key \"$GEMINI_KEY\" \\\
+  --openai_key \"{{ $node[\"Process Video Pipeline\"].json[\"openai_key\"] }}\" \\\n  --tts_voice \"{{ $node[\"Process Video Pipeline\"].json[\"tts_voice\"] }}\" \\\n  --target_language \"{{ $node[\"Process Video Pipeline\"].json[\"target_language\"] }}\" \\\n  {{ $node[\"Process Video Pipeline\"].json[\"caption_enabled\"] ? '--caption_enabled' : '' }} \\\n  --caption_font \"{{ $node[\"Process Video Pipeline\"].json[\"caption_font\"] }}\" \\\n  --caption_size \"{{ $node[\"Process Video Pipeline\"].json[\"caption_size\"] }}\" \\\n  --caption_color \"{{ $node[\"Process Video Pipeline\"].json[\"caption_color\"] }}\" \\\n  --caption_position \"{{ $node[\"Process Video Pipeline\"].json[\"caption_position\"] }}\" \\\n  --video_speed \"{{ $node[\"Process Video Pipeline\"].json[\"video_speed\"] }}\" \\\n  {{ $node[\"Process Video Pipeline\"].json[\"filter_nsfw\"] ? '--filter_nsfw' : '' }} \\\
+  $MUSIC_ARG 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
@@ -191,24 +206,10 @@
         -848
       ],
       "id": "5f61aeed-34bc-49f3-beff-a3eebaa1d1d8",
-      "name": "Process Video",
+      "name": "Process Video Pipeline",
       "continueOnFail": true
     },
-    {
-      "parameters": {
-        "command": "=#!/bin/bash\nset -e\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\nVIDEO_INPUT=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_OUTPUT=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_OUTPUT_TEMP=\"/home/node/downloads/${VIDEO_ID}_processed_temp.mp4\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\nif [ ! -f \"$VIDEO_INPUT\" ]; then\n  echo \"Error: Processed video file not found: $VIDEO_INPUT\" >&2\n  exit 1\nfi\n\nif [ -z \"$INTRO_VIDEO_URL\" ] || [ \"$INTRO_VIDEO_URL\" = \"\" ]; then\n  cp \"$VIDEO_INPUT\" \"$VIDEO_OUTPUT\"\n  exit 0\nfi\n\nINTRO_VIDEO=\"${OUTPUT_DIR}/intro_${VIDEO_ID}.mp4\"\n\nif echo \"$INTRO_VIDEO_URL\" | grep -q \"drive.google.com\"; then\n  FILE_ID=\"\"\n  FILE_ID=$(echo \"$INTRO_VIDEO_URL\" | sed -n 's/.*\\/d\\/\\([^\\/]*\\)\\/.*/\\1/p' | head -1)\n  if [ -z \"$FILE_ID\" ]; then\n    FILE_ID=$(echo \"$INTRO_VIDEO_URL\" | sed -n 's/.*[?&]id=\\([^&]*\\).*/\\1/p' | head -1)\n  fi\n  if [ -z \"$FILE_ID\" ]; then\n    if echo \"$INTRO_VIDEO_URL\" | grep -qE '^[a-zA-Z0-9_-]+$'; then\n      FILE_ID=\"$INTRO_VIDEO_URL\"\n    fi\n  fi\n  if [ -n \"$FILE_ID\" ]; then\n    INTRO_VIDEO_URL=\"https://drive.google.com/uc?export=download&id=${FILE_ID}\"\n  fi\nfi\n\necho \"Downloading intro video from: $INTRO_VIDEO_URL\"\nwget -O \"$INTRO_VIDEO\" \"$INTRO_VIDEO_URL\" || {\n  echo \"Error: Failed to download intro video\"\n  exit 1\n}\n\nif [ ! -f \"$INTRO_VIDEO\" ] || [ ! -s \"$INTRO_VIDEO\" ]; then\n  echo \"Error: Intro video file is empty or not found\"\n  exit 1\nfi\n\nMAIN_W=$(ffprobe -v error -select_streams v:0 -show_entries stream=width  -of csv=p=0 \"$VIDEO_INPUT\")\nMAIN_H=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 \"$VIDEO_INPUT\")\nMAIN_FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 \"$VIDEO_INPUT\")\nMAIN_HAS_AUDIO=$(ffprobe -v error -select_streams a:0 -count_frames -show_entries stream=codec_name -of csv=p=0 \"$VIDEO_INPUT\" 2>/dev/null || true)\n\nINTRO_TEMP=\"${OUTPUT_DIR}/intro_scaled_${VIDEO_ID}.mp4\"\n\nif [ -n \"$MAIN_HAS_AUDIO\" ]; then\n  INTRO_HAS_AUDIO=$(ffprobe -v error -select_streams a:0 -count_frames -show_entries stream=codec_name -of csv=p=0 \"$INTRO_VIDEO\" 2>/dev/null || true)\n  if [ -n \"$INTRO_HAS_AUDIO\" ]; then\n    ffmpeg -y \\\n      -i \"$INTRO_VIDEO\" \\\n      -vf \"scale=${MAIN_W}:${MAIN_H}:force_original_aspect_ratio=decrease,pad=${MAIN_W}:${MAIN_H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${MAIN_FPS}\" \\\n      -af \"aresample=48000:resampler=soxr\" \\\n      -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \\\n      -c:a aac -ar 48000 -ac 2 -b:a 128k \\\n      \"$INTRO_TEMP\"\n  else\n    ffmpeg -y \\\n      -i \"$INTRO_VIDEO\" \\\n      -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 \\\n      -vf \"scale=${MAIN_W}:${MAIN_H}:force_original_aspect_ratio=decrease,pad=${MAIN_W}:${MAIN_H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${MAIN_FPS}\" \\\n      -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \\\n      -c:a aac -ar 48000 -ac 2 -b:a 128k \\\n      -shortest \\\n      \"$INTRO_TEMP\"\n  fi\nelse\n  ffmpeg -y \\\n    -i \"$INTRO_VIDEO\" \\\n    -vf \"scale=${MAIN_W}:${MAIN_H}:force_original_aspect_ratio=decrease,pad=${MAIN_W}:${MAIN_H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${MAIN_FPS}\" \\\n    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \\\n    \"$INTRO_TEMP\"\nfi\n\nif [ -n \"$MAIN_HAS_AUDIO\" ]; then\n  ffmpeg -y \\\n    -i \"$INTRO_TEMP\" -i \"$VIDEO_INPUT\" \\\n    -filter_complex \"[0:a]aresample=48000:resampler=soxr[a0];[0:v][a0][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" \\\n    -map \"[outv]\" -map \"[outa]\" \\\n    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \\\n    -c:a aac -ar 48000 -ac 2 -b:a 128k \\\n    \"$VIDEO_OUTPUT_TEMP\"\nelse\n  ffmpeg -y \\\n    -i \"$INTRO_TEMP\" -i \"$VIDEO_INPUT\" \\\n    -filter_complex \"[0:v][1:v]concat=n=2:v=1[outv]\" \\\n    -map \"[outv]\" \\\n    -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \\\n    \"$VIDEO_OUTPUT_TEMP\"\nfi\n\nif [ ! -f \"$VIDEO_OUTPUT_TEMP\" ]; then\n  echo \"Error: Output file not created!\"\n  exit 1\nfi\n\nrm -f \"$VIDEO_INPUT\"\nmv \"$VIDEO_OUTPUT_TEMP\" \"$VIDEO_OUTPUT\"\nrm -f \"$INTRO_TEMP\" \"$INTRO_VIDEO\"\n\nif [ -f \"$VIDEO_OUTPUT\" ]; then\n  echo \"Video with intro created: $VIDEO_OUTPUT\"\n  else\n  echo \"Error: Final output file not found!\"\n  exit 1\nfi\n"
-      },
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
-      "position": [
-        1504,
-        -848
-      ],
-      "id": "ffb2e655-fef8-40ed-9217-bc73122ce4ab",
-      "name": "Insert Background Intro",
-      "executeOnce": false,
-      "continueOnFail": true
-    },
+
     {
       "parameters": {
         "command": "=#!/bin/bash\nset -e\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nDRIVE_UUID=\"{{ $('Merge YouTube Metadata').first().json.driveUuid }}\"\nSOURCE_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nDEST_PATH=\"gdrive:reup-ytb/${DRIVE_UUID}.mp4\"\n\nif [ ! -f \"$SOURCE_FILE\" ]; then\n  echo \"ERROR: Source file not found: $SOURCE_FILE\" >&2\n  exit 1\nfi\n\nrclone copyto \"$SOURCE_FILE\" \"$DEST_PATH\" -P >/dev/null 2>&1\n"
@@ -759,6 +760,73 @@
     },
     {
       "parameters": {
+        "command": "python3 /app/scripts/process_video.py",
+        "arguments": [
+          {
+            "name": "--video_url",
+            "value": "={{ $json.video_url }}"
+          },
+          {
+            "name": "--video_id",
+            "value": "={{ $json.id }}"
+          },
+          {
+            "name": "--video_title",
+            "value": "={{ $json.video_title }}"
+          },
+          {
+            "name": "--background_music",
+            "value": "={{ $json.Background_Music || '' }}"
+          },
+          {
+            "name": "--filter_nsfw",
+            "value": "={{ $json.filter_nsfw == 'TRUE' }}"
+          },
+          {
+            "name": "--tts_voice",
+            "value": "={{ $json.tts_voice || '' }}"
+          },
+          {
+            "name": "--target_language",
+            "value": "={{ $json.target_language || '' }}"
+          },
+          {
+            "name": "--caption_enabled",
+            "value": "={{ $json.caption_enabled == 'TRUE' }}"
+          },
+          {
+            "name": "--caption_font",
+            "value": "={{ $json.caption_font || 'Arial' }}"
+          },
+          {
+            "name": "--caption_size",
+            "value": "={{ $json.caption_size || '24' }}"
+          },
+          {
+            "name": "--caption_color",
+            "value": "={{ $json.caption_color || '&H00FFFF' }}"
+          },
+          {
+            "name": "--caption_position",
+            "value": "={{ $json.caption_position || 'bottom' }}"
+          },
+          {
+            "name": "--video_speed",
+            "value": "={{ $json.video_speed || '1.0' }}"
+          }
+        ]
+      },
+      "id": "e4f3a1b2-c5d6-4e7f-8a9b-0c1d2e3f4g5h",
+      "name": "Process Video Pipeline",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -1069,18 +1137,18 @@
         ]
       ]
     },
-    "Process Video": {
+    "Detect Logo (YOLO)": {
       "main": [
         [
           {
-            "node": "Insert Background Intro",
+            "node": "Process Video Pipeline",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Insert Background Intro": {
+    "Process Video Pipeline": {
       "main": [
         [
           {
@@ -1237,17 +1305,7 @@
         ]
       ]
     },
-    "Detect Logo (YOLO)": {
-      "main": [
-        [
-          {
-            "node": "Process Video",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
+
     "Loop Over Items": {
       "main": [
         [],

@@ -1,0 +1,199 @@
+---
+trigger: glob
+---
+
+# Flow Project Overview: YouTube Video Processing & Publishing
+
+## 1. Tổng quan Project
+
+Dự án tự động hóa quy trình xử lý và xuất bản video YouTube:
+- Tải video từ YouTube
+- Phát hiện và thay thế logo bằng AI (Gemini)
+- Xử lý video (delogo, overlay logo mới, thêm intro)
+- Upload lên Google Drive
+- Tự động generate metadata (title, description) bằng AI
+- Upload lên YouTube (tùy chọn)
+
+---
+
+## 2. Main Flow Diagram
+
+```
+Schedule Trigger
+    ↓
+Get Video Information (Google Sheets)
+    ↓
+Loop Over Items (Split In Batches)
+    ↓
+Publish video (IF)
+    ├─ TRUE → Meta_data (IF)
+    │           ├─ TRUE → Download Processed Video From Drive → Upload To YouTube
+    │           └─ FALSE → Prepare Video Metadata Prompt → Generate Metadata → Parse Metadata → Merge For Update
+    │
+    └─ FALSE → Extract Video URL → Process Video Flow
+```
+
+---
+
+## 3. Chi tiết các nhánh Flow
+
+### Nhánh A: Publish video = TRUE (Video đã sẵn sàng để publish)
+
+**Điều kiện:**
+- `publish_status` = "pending"
+- `enable_youtube_upload` = true
+- `processed_video_drive_link` không rỗng
+
+**Sub-flow A1: Meta_data = TRUE**
+```
+Download Processed Video From Drive
+    ↓
+Read Processed Video For YouTube
+    ↓
+Merge Data For YouTube Check
+    ↓
+Check Should Upload To YouTube (IF)
+    ↓
+Upload To YouTube
+    ↓
+Update Publish Status
+```
+
+**Sub-flow A2: Meta_data = FALSE**
+```
+Prepare Video Metadata Prompt
+    ↓
+Generate Video Metadata (AI) - Gemini API
+    ↓
+Parse Video Metadata
+    ↓
+Merge For Update
+    ↓
+Update Drive Link
+```
+
+---
+
+### Nhánh B: Publish video = FALSE (Cần xử lý video)
+
+**Flow:**
+```
+Extract Video URL
+    ↓
+Extract YouTube Metadata (yt-dlp)
+    ↓
+Merge YouTube Metadata
+    ↓
+Clear Old Files
+    ↓
+Download Video (yt-dlp)
+    ↓
+Read Video File
+    ↓
+Extract Frame (ffmpeg)
+    ↓
+Read Frame File
+    ↓
+Download New Logo (parallel)
+    ↓
+Download Old Logo Sample (parallel)
+    ↓
+Read Old Logo Sample
+    ↓
+Prepare Gemini Request 1 & 2 (parallel)
+    ↓
+Detect Logo (AI) & Detect Logo (AI) 2 (parallel)
+    ↓
+Parse Logo Coordinates & Parse Logo Coordinates 2
+    ↓
+Merge 2 Detection Results
+    ↓
+Choose Best Logo Coordinates
+    ↓
+Create Logo Coordinates File
+    ↓
+AI Select Best Frame Script
+    ↓
+Process Video (ffmpeg)
+    ↓
+Insert Background Intro (ffmpeg)
+    ↓
+Upload to Drive (rclone)
+    ↓
+Get Drive Link
+    ↓
+Cleanup Files (parallel)
+    ↓
+Merge For Update
+    ↓
+Update Drive Link
+```
+
+---
+
+## 4. Điều kiện quan trọng
+
+### Publish video (IF)
+- `publish_status` = "pending"
+- `enable_youtube_upload` = true
+- `processed_video_drive_link` không rỗng
+
+### Meta_data (IF)
+- `youtube_title` không rỗng
+- `youtube_category` không rỗng
+- `youtube_description` không rỗng
+
+### Check Should Upload To YouTube (IF)
+- `enable_youtube_upload_should_upload` = true
+
+---
+
+## 5. Key Dependencies
+
+- **yt-dlp**: Download video từ YouTube
+- **ffmpeg**: Xử lý video (extract frame, delogo, overlay, concat)
+- **rclone**: Upload lên Google Drive
+- **Gemini API**: AI detection và metadata generation
+- **Google Sheets API**: Đọc/ghi dữ liệu
+- **YouTube API**: Upload video lên YouTube
+
+---
+
+## 6. Google Sheets Schema
+
+### Required Fields
+- `id`: Video ID (unique)
+- `video_url`: YouTube URL
+- `status`: Processing status (pending/done)
+
+### Optional Fields
+- `video_title`: Custom title
+- `new_logo_url`: URL logo mới
+- `old_logo_url`: URL logo cũ mẫu
+- `intro_background_url`: URL intro video
+- `enable_youtube_upload`: Boolean flag
+- `publish_status`: Status (pending/published)
+- `youtube_title`: Title cho YouTube
+- `youtube_description`: Description cho YouTube
+- `youtube_category`: Category (hoạt hình/âm nhạc/other)
+- `youtube_privacy`: Privacy (private/unlisted/public)
+- `processed_video_drive_link`: Google Drive link
+
+---
+
+## 7. Error Handling Strategy
+
+- Hầu hết các node có `continueOnFail: true`
+- Logo detection có thể fail → Fallback về overlay logo ở top-right
+- Old logo sample có thể không có → Sử dụng text description only
+- Intro video có thể không có → Copy video gốc
+- Metadata generation có thể fail → Fallback về data từ Sheets
+
+---
+
+## 8. Key Notes
+
+- Logo detection chạy 2 lần để tăng độ chính xác
+- Metadata generation chỉ chạy khi thiếu metadata
+- YouTube upload chỉ chạy khi `enable_youtube_upload` = true
+- File cuối cùng: `{VIDEO_ID}_processed.mp4` (đã xử lý logo và intro)

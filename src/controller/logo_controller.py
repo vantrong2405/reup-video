@@ -35,7 +35,7 @@ class LogoController:
         else:
             self._unknown_mode(mode)
 
-    def _parse_mode(self, raw_mode):
+    def _parse_mode(self, raw_mode):                                                                            
         return raw_mode if raw_mode in self.MODE["ALL"] else None
 
     def _handle_detect(self, argv):
@@ -57,7 +57,7 @@ class LogoController:
         origin_path = argv[2]
         logo_path = argv[3]
         x, y = int(argv[4]), int(argv[5])
-        width, height = int(argv[6]), int(argv[7])
+        width, height = int(argv[6]), int(argv[7                                                                                                                                                                                            ])
         output_path = argv[8]
         scale_w = float(argv[9]) if len(argv) > 9 else self.DEFAULT_SCALE_W
         scale_h = float(argv[10]) if len(argv) > 10 else scale_w
