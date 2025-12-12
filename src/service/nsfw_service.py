@@ -1,28 +1,23 @@
 import os
-import subprocess
-from pathlib import Path
+import cv2
 import json
+from pathlib import Path
+from nudenet import NudeDetector
+
+from utils.command_utils import CommandUtils
 
 class NSFWService:
-    """
-    Service to detect and filter NSFW content from videos using NudeNet.
-    """
-    
+
     @staticmethod
     def detect_unsafe_segments(video_path, threshold=0.7, frame_interval=1.0):
         try:
-            from nudenet import NudeDetector
             detector = NudeDetector()
-        except ImportError:
-            print("Error: NudeNet not installed.")
-            return []
         except Exception as e:
             print(f"Error initializing NudeNet: {e}")
-            return []
+            raise e
 
         print(f"DEBUG: Scanning video for NSFW content: {video_path}")
         
-        import cv2
         cap = cv2.VideoCapture(str(video_path))
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -90,16 +85,11 @@ class NSFWService:
         return segments
 
     @staticmethod
-    def _run_command(command):
-        subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    @staticmethod
     def filter_video(video_path, output_path, work_dir="/tmp"):
         segments = NSFWService.detect_unsafe_segments(video_path)
         if not segments:
             return video_path
 
-        import cv2
         cap = cv2.VideoCapture(str(video_path))
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -132,22 +122,20 @@ class NSFWService:
                     f"ffmpeg -y -ss {start} -t {duration_seg} -i \"{video_path}\" "
                     f"-c:v libx264 -preset veryfast -c:a aac \"{seg_file}\""
                 )
-                NSFWService._run_command(cmd)
+                CommandUtils.run_command(cmd)
                 segment_files.append(seg_file)
                 f.write(f"file '{seg_file}'\n")
         
-        # Concat
         cmd_concat = (
             f"ffmpeg -y -f concat -safe 0 -i \"{concat_list_path}\" "
             f"-c copy \"{output_path}\""
         )
         try:
-             subprocess.run(cmd_concat, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
+             CommandUtils.run_command(cmd_concat)
+        except Exception as e:
              print(f"Error concatenating: {e}")
              return video_path
 
-        # Cleanup
         for sf in segment_files:
             try: sf.unlink()
             except: pass

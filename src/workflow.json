@@ -182,25 +182,10 @@
     },
     {
       "parameters": {
-        "command": "=export PYTHONPATH=$PYTHONPATH:/data/src\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\n# Dynamic Configs\nFLIP=\"{{ $('Get Video Information').first().json.flip ? '--flip' : '' }}\"\nZOOM=\"{{ $('Get Video Information').first().json.zoom || 1.0 }}\"\nBRIGHTNESS=\"{{ $('Get Video Information').first().json.brightness || 0.0 }}\"\nSATURATION=\"{{ $('Get Video Information').first().json.saturation || 1.0 }}\"\nHUE=\"{{ $('Get Video Information').first().json.hue || 0.0 }}\"\nBG_MUSIC=\"{{ $('Get Video Information').first().json.background_music_url || '' }}\"\nREMOVE_TEXT=\"{{ $('Get Video Information').first().json.remove_text ? '--remove_text' : '' }}\"\nAI_DUBBING=\"{{ $('Get Video Information').first().json.ai_dubbing ? '--ai_dubbing' : '' }}\"\nGEMINI_KEY=\"{{ $('Get Video Information').first().json.gemini_key || '' }}\"\nOPENAI_KEY=\"{{ $('Get Video Information').first().json.openai_key || '' }}\"\nTTS_VOICE=\"{{ $('Get Video Information').first().json.tts_voice || '' }}\"\nFILTER_NSFW=\"{{ $('Get Video Information').first().json.filter_nsfw ? '--filter_nsfw' : '' }}\"\n\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\n# Download Music if provided\nMUSIC_ARG=\"\"\nif [ -n \"$BG_MUSIC\" ]; then\n  MUSIC_FILE=\"/home/node/downloads/music_${VIDEO_ID}.mp3\"\n  wget -O \"$MUSIC_FILE\" \"$BG_MUSIC\"\n  MUSIC_ARG=\"--background_music $MUSIC_FILE\"\nfi\n\npython3 /data/src/controller/video_controller.py pipeline \\\n  \"$VIDEO_INPUT\" \\\n  \"$LOGO_INPUT\" \\\
-  \"$DETECT_OUTPUT\" \\\
-  \"$OUTPUT_FILE\" \\\
-  --new_logo_url \"$NEW_LOGO_URL\" \\\
-  --intro_url \"$INTRO_VIDEO_URL\" \\\
-  --work_dir \"$OUTPUT_DIR\" \\\
-  $FLIP \\\
-  --zoom \"$ZOOM\" \\\
-  --brightness \"$BRIGHTNESS\" \\\
-  --saturation \"$SATURATION\" \\\
-  --hue \"$HUE\" \\\
-  $REMOVE_TEXT \\\
-  $AI_DUBBING \\\
-  --gemini_key \"$GEMINI_KEY\" \\\
-  --openai_key \"{{ $node[\"Process Video Pipeline\"].json[\"openai_key\"] }}\" \\\n  --tts_voice \"{{ $node[\"Process Video Pipeline\"].json[\"tts_voice\"] }}\" \\\n  --target_language \"{{ $node[\"Process Video Pipeline\"].json[\"target_language\"] }}\" \\\n  {{ $node[\"Process Video Pipeline\"].json[\"caption_enabled\"] ? '--caption_enabled' : '' }} \\\n  --caption_font \"{{ $node[\"Process Video Pipeline\"].json[\"caption_font\"] }}\" \\\n  --caption_size \"{{ $node[\"Process Video Pipeline\"].json[\"caption_size\"] }}\" \\\n  --caption_color \"{{ $node[\"Process Video Pipeline\"].json[\"caption_color\"] }}\" \\\n  --caption_position \"{{ $node[\"Process Video Pipeline\"].json[\"caption_position\"] }}\" \\\n  --video_speed \"{{ $node[\"Process Video Pipeline\"].json[\"video_speed\"] }}\" \\\n  {{ $node[\"Process Video Pipeline\"].json[\"filter_nsfw\"] ? '--filter_nsfw' : '' }} \\\
-  $MUSIC_ARG 2>&1"
+        "command": "=export PYTHONPATH=$PYTHONPATH:/data/src\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\n# Visual Effects (Anti-AI)\nFLIP=\"{{ $('Get Video Information').first().json.flip ? '--flip' : '' }}\"\nZOOM=\"{{ $('Get Video Information').first().json.zoom || 1.1 }}\"\nSPEED=\"{{ $('Get Video Information').first().json.speed || 1.02 }}\"\nBRIGHTNESS=\"{{ $('Get Video Information').first().json.brightness || 0.05 }}\"\nSATURATION=\"{{ $('Get Video Information').first().json.saturation || 1.1 }}\"\nHUE=\"{{ $('Get Video Information').first().json.hue || 0.0 }}\"\n\nBG_MUSIC=\"{{ $('Get Video Information').first().json.background_music_url || '' }}\"\nREMOVE_TEXT=\"{{ $('Get Video Information').first().json.remove_text ? '--remove_text' : '' }}\"\nFILTER_NSFW=\"{{ $('Get Video Information').first().json.filter_nsfw ? '--filter_nsfw' : '' }}\"\nOCR_LANGUAGES=\"{{ $('Get Video Information').first().json.ocr_languages || 'en' }}\"\nOCR_EXPAND=\"{{ $('Get Video Information').first().json.ocr_expand || 10 }}\"\nOCR_MAX_FRAMES=\"{{ $('Get Video Information').first().json.ocr_max_frames || 3 }}\"\nGEMINI_KEY=\"{{ $('Get Video Information').first().json.gemini_api_key || '' }}\"\n\n# Logo Configs\nLOGO_WIDTH=\"{{ $('Get Video Information').first().json.logo_width || 220 }}\"\nLOGO_HEIGHT=\"{{ $('Get Video Information').first().json.logo_height || '' }}\"\nLOGO_PADDING=\"{{ $('Get Video Information').first().json.logo_padding || 10 }}\"\nLOGO_POSITION=\"{{ $('Get Video Information').first().json.logo_position || 'top-right' }}\"\n\n# Split Configs\nSPLIT_MODE=\"{{ $('Get Video Information').first().json.split_mode || 'none' }}\"\nSPLIT_START=\"{{ $('Get Video Information').first().json.split_start || '00:00:00' }}\"\nSPLIT_DURATION=\"{{ $('Get Video Information').first().json.split_duration || 10 }}\"\nSPLIT_MIN_DURATION=\"{{ $('Get Video Information').first().json.split_min_duration || 5 }}\"\nSPLIT_LIMIT=\"{{ $('Get Video Information').first().json.split_limit || 5 }}\"\n\n# Advanced Configs\nFFMPEG_PRESET=\"{{ $('Get Video Information').first().json.ffmpeg_preset || 'veryfast' }}\"\nDELOGO_EXPAND=\"{{ $('Get Video Information').first().json.delogo_expand || 0 }}\"\nBG_MUSIC_VOLUME=\"{{ $('Get Video Information').first().json.bg_music_volume || 0.3 }}\"\n\nLOGO_HEIGHT_ARG=\"\"\nif [ -n \"$LOGO_HEIGHT\" ]; then\n  LOGO_HEIGHT_ARG=\"--logo_height $LOGO_HEIGHT\"\nfi\n\nGEMINI_ARG=\"\"\nif [ -n \"$GEMINI_KEY\" ]; then\n  GEMINI_ARG=\"--gemini_key $GEMINI_KEY\"\nfi\n\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\n# Download Music if provided\nMUSIC_ARG=\"\"\nif [ -n \"$BG_MUSIC\" ]; then\n  MUSIC_FILE=\"/home/node/downloads/music_${VIDEO_ID}.mp3\"\n  wget -O \"$MUSIC_FILE\" \"$BG_MUSIC\"\n  MUSIC_ARG=\"--background_music $MUSIC_FILE\"\nfi\n\npython3 /data/src/controller/video_controller.py pipeline \\\n  \"$VIDEO_INPUT\" \\\n  \"$LOGO_INPUT\" \\\n  \"$DETECT_OUTPUT\" \\\n  \"$OUTPUT_FILE\" \\\n  --new_logo_url \"$NEW_LOGO_URL\" \\\n  --intro_url \"$INTRO_VIDEO_URL\" \\\n  --work_dir \"$OUTPUT_DIR\" \\\n  $FLIP \\\n  --zoom \"$ZOOM\" \\\n  --speed \"$SPEED\" \\\n  --brightness \"$BRIGHTNESS\" \\\n  --saturation \"$SATURATION\" \\\n  --hue \"$HUE\" \\\n  $REMOVE_TEXT \\\n  $FILTER_NSFW \\\n  --ocr_languages \"$OCR_LANGUAGES\" \\\n  --ocr_expand \"$OCR_EXPAND\" \\\n  --ocr_max_frames \"$OCR_MAX_FRAMES\" \\\n  $GEMINI_ARG \\\n  --logo_width \"$LOGO_WIDTH\" \\\n  $LOGO_HEIGHT_ARG \\\n  --logo_padding \"$LOGO_PADDING\" \\\n  --logo_position \"$LOGO_POSITION\" \\\n  --ffmpeg_preset \"$FFMPEG_PRESET\" \\\n  --delogo_expand \"$DELOGO_EXPAND\" \\\n  --bg_music_volume \"$BG_MUSIC_VOLUME\" \\\n  --split-mode \"$SPLIT_MODE\" \\\n  --split-start \"$SPLIT_START\" \\\n  --split-duration \"$SPLIT_DURATION\" \\\n  --split-min-duration \"$SPLIT_MIN_DURATION\" \\\n  --split-limit \"$SPLIT_LIMIT\" \\\n  $MUSIC_ARG 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "typeVersion": 1,   
       "position": [
         1344,
         -848
@@ -782,34 +767,7 @@
             "name": "--filter_nsfw",
             "value": "={{ $json.filter_nsfw == 'TRUE' }}"
           },
-          {
-            "name": "--tts_voice",
-            "value": "={{ $json.tts_voice || '' }}"
-          },
-          {
-            "name": "--target_language",
-            "value": "={{ $json.target_language || '' }}"
-          },
-          {
-            "name": "--caption_enabled",
-            "value": "={{ $json.caption_enabled == 'TRUE' }}"
-          },
-          {
-            "name": "--caption_font",
-            "value": "={{ $json.caption_font || 'Arial' }}"
-          },
-          {
-            "name": "--caption_size",
-            "value": "={{ $json.caption_size || '24' }}"
-          },
-          {
-            "name": "--caption_color",
-            "value": "={{ $json.caption_color || '&H00FFFF' }}"
-          },
-          {
-            "name": "--caption_position",
-            "value": "={{ $json.caption_position || 'bottom' }}"
-          },
+
           {
             "name": "--video_speed",
             "value": "={{ $json.video_speed || '1.0' }}"

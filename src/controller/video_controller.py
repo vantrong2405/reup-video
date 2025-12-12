@@ -1,133 +1,147 @@
-import sys
 import argparse
+import sys
 import json
 import os
-from pathlib import Path
-from dotenv import load_dotenv
 from service.video_service import VideoService
+from service.logo_service import LogoService
 
-# Load environment variables from .env file
-load_dotenv()
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 class VideoController:
-    def process_logo(self, args):
+    DEFAULT_MODEL_PATH = "best.pt"
+    DEFAULT_CONF_THRESHOLD = 0.4
+
+    def __init__(self):
+        self.service = LogoService()
+
+    def _handle_detect(self, argv):
+        parser = argparse.ArgumentParser(description="Logo Detection")
+        parser.add_argument("command")
+        parser.add_argument("image_path")
+        parser.add_argument("model_path", nargs="?", default=self.DEFAULT_MODEL_PATH)
+        parser.add_argument("conf_threshold", nargs="?", type=float, default=self.DEFAULT_CONF_THRESHOLD)
+        args = parser.parse_args(argv[1:])
         try:
-            VideoService.process_logo(
-                args.video_input,
-                args.logo_input,
-                args.detect_json,
-                args.output_path,
-                args.new_logo_url
-            )
-            print(json.dumps({"success": True, "output": args.output_path}))
+            result = self.service.detect_logo(args.image_path, args.model_path, args.conf_threshold)
+            print(json.dumps(result))
         except Exception as e:
-            print(f"Error processing logo: {e}", file=sys.stderr)
+            print(json.dumps({"logos": [], "count": 0, "error": str(e)}), file=sys.stderr)
             sys.exit(1)
 
-    def insert_intro(self, args):
+    def _handle_process(self, argv):
+        parser = argparse.ArgumentParser(description="Logo Processing")
+        parser.add_argument("command")
+        parser.add_argument("origin_path")
+        parser.add_argument("logo_path")
+        parser.add_argument("model_path")
+        parser.add_argument("conf_threshold", type=float)
+        parser.add_argument("output_path")
+        args = parser.parse_args(argv[1:])
         try:
-            output = VideoService.insert_intro(
-                args.video_input,
-                args.intro_url,
-                args.output_path,
-                args.work_dir
-            )
-            print(json.dumps({"success": True, "output": output}))
+            result = self.service.process_logo(args.origin_path, args.logo_path, args.model_path, args.conf_threshold, args.output_path)
+            print(json.dumps(result))
         except Exception as e:
-            print(f"Error inserting intro: {e}", file=sys.stderr)
+            print(json.dumps({"output": "", "error": str(e)}), file=sys.stderr)
             sys.exit(1)
 
 def main():
-    parser = argparse.ArgumentParser(description="Video Controller")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(description="Video Processing Controller")
+    subparsers = parser.add_subparsers(dest="command")
 
-    p_logo = subparsers.add_parser("process_logo", help="Process video logo replacement")
-    p_logo.add_argument("video_input", help="Path to input video")
-    p_logo.add_argument("logo_input", help="Path to logo file")
-    p_logo.add_argument("detect_json", help="JSON string from detection")
-    p_logo.add_argument("output_path", help="Path to output video")
-    p_logo.add_argument("--new_logo_url", help="URL to download new logo if missing", default="")
+    parser_pipeline = subparsers.add_parser("pipeline")
+    parser_pipeline.add_argument("video_input")
+    parser_pipeline.add_argument("logo_input")
+    parser_pipeline.add_argument("detect_json")
+    parser_pipeline.add_argument("output_path")
+    
+    # Optional
+    parser_pipeline.add_argument("--intro_url", help="URL or path to intro video")
+    parser_pipeline.add_argument("--work_dir", default="/tmp", help="Working directory")
+    parser_pipeline.add_argument("--flip", action="store_true", help="Flip video horizontally")
+    parser_pipeline.add_argument("--zoom", type=float, default=1.0, help="Zoom factor")
+    parser_pipeline.add_argument("--speed", type=float, default=1.0, help="Speed factor")
+    parser_pipeline.add_argument("--ffmpeg_preset", default="veryfast", help="FFmpeg preset")
+    
+    # Color
+    parser_pipeline.add_argument("--brightness", type=float, default=0.0)
+    parser_pipeline.add_argument("--saturation", type=float, default=1.0)
+    parser_pipeline.add_argument("--hue", type=float, default=0.0)
+    
+    # Audio
+    parser_pipeline.add_argument("--background_music", help="Path to background music")
+    parser_pipeline.add_argument("--bg_music_volume", type=float, default=0.3)
+    
+    # OCR
+    parser_pipeline.add_argument("--remove_text", action="store_true")
+    parser_pipeline.add_argument("--ocr_languages", nargs="+", default=["en"])
+    parser_pipeline.add_argument("--gemini_key", help="Gemini API Key")
+    
+    # NSFW
+    parser_pipeline.add_argument("--filter_nsfw", action="store_true")
+    
+    # Signature (NEW)
+    parser_pipeline.add_argument("--unique", action="store_true", help="Enable unique video signature (anti-copyright)")
+    parser_pipeline.add_argument("--watermark", help="Watermark text")
+    parser_pipeline.add_argument("--watermark-opacity", type=float, default=0.15, help="Watermark opacity (0.1-0.3)")
+    parser_pipeline.add_argument("--watermark-size", type=int, default=18, help="Watermark font size")
+    parser_pipeline.add_argument("--watermark-speed", type=int, default=50, help="Watermark scroll speed (px/s)")
+    parser_pipeline.add_argument("--watermark-position", choices=["top", "bottom", "diagonal", "random"], default="bottom")
 
-    p_intro = subparsers.add_parser("insert_intro", help="Insert intro video")
-    p_intro.add_argument("video_input", help="Path to input video")
-    p_intro.add_argument("intro_url", help="URL to intro video")
-    p_intro.add_argument("output_path", help="Path to output video")
-    p_intro.add_argument("--work_dir", help="Working directory for temporary files", default="/tmp")
-
-    p_pipe = subparsers.add_parser("pipeline", help="Run full video processing pipeline (Logo + Intro)")
-    p_pipe.add_argument("video_input", help="Path to input video")
-    p_pipe.add_argument("logo_input", help="Path to logo file")
-    p_pipe.add_argument("detect_json", help="JSON string from detection")
-    p_pipe.add_argument("output_path", help="Path to output video")
-    p_pipe.add_argument("--new_logo_url", help="URL to download new logo if missing", default="")
-    p_pipe.add_argument("--intro_url", help="URL to intro video", default="")
-    p_pipe.add_argument("--work_dir", help="Working directory for temporary files", default="/tmp")
-    # Effects
-    p_pipe.add_argument("--flip", action="store_true", help="Flip video horizontally")
-    p_pipe.add_argument("--zoom", type=float, default=1.0, help="Zoom factor (e.g., 1.1 for 110%)")
-    p_pipe.add_argument("--brightness", type=float, default=0.0, help="Brightness adjustment (default 0.0)")
-    p_pipe.add_argument("--saturation", type=float, default=1.0, help="Saturation adjustment (default 1.0)")
-    p_pipe.add_argument("--hue", type=float, default=0.0, help="Hue adjustment (default 0.0)")
-    p_pipe.add_argument("--background_music", help="Path to background music file", default=None)
-    p_pipe.add_argument("--remove_text", action="store_true", help="Attempt to remove text using OCR")
-    p_pipe.add_argument("--ai_dubbing", action="store_true", help="Enable AI Dubbing (Audio Rewrite)")
-    p_pipe.add_argument("--gemini_key", help="Gemini API Key for text rewriting")
-    p_pipe.add_argument("--openai_key", help="OpenAI API Key for TTS")
-    p_pipe.add_argument("--tts_voice", help="TTS Voice ID (e.g. alloy, vi-VN-NamMinhNeural)", default="")
-    p_pipe.add_argument("--target_language", help="Target language for translation", default=None)
-    p_pipe.add_argument("--caption_enabled", action="store_true", help="Enable auto-generated captions")
-    p_pipe.add_argument("--caption_font", help="Caption font name", default="Arial")
-    p_pipe.add_argument("--caption_size", help="Caption font size", default="24")
-    p_pipe.add_argument("--caption_color", help="Caption color (ASS Hex)", default="&H00FFFF")
-    p_pipe.add_argument("--caption_position", help="Caption position (bottom/center)", default="bottom")
-    p_pipe.add_argument("--video_speed", help="Video playback speed (e.g. 1.0, 1.25)", default="1.0")
-    p_pipe.add_argument("--filter_nsfw", action="store_true", help="Enable NSFW content filtering")
+    # Split
+    parser_pipeline.add_argument("--split-mode", choices=['none', 'manual', 'auto'], default='none')
+    parser_pipeline.add_argument("--split-start", default="00:00:00")
+    parser_pipeline.add_argument("--split-duration", type=float, default=10.0)
+    parser_pipeline.add_argument("--split-limit", type=int, default=5)
 
     args = parser.parse_args()
 
-    controller = VideoController()
-
-    if args.command == "process_logo":
-        controller.process_logo(args)
-    elif args.command == "insert_intro":
-        controller.insert_intro(args)
+    if args.command == "detect":
+         VideoController()._handle_detect(sys.argv)
+    elif args.command == "process":
+         VideoController()._handle_process(sys.argv)
     elif args.command == "pipeline":
         try:
-            gemini_key = args.gemini_key or os.getenv("GEMINI_API_KEY")
-            openai_key = args.openai_key or os.getenv("OPENAI_API_KEY")
-
+            detect_json = args.detect_json
+            if os.path.isfile(detect_json):
+                with open(detect_json, 'r') as f:
+                    detect_json = f.read()
 
             output = VideoService.process_pipeline(
                 args.video_input,
                 args.logo_input,
-                args.detect_json,
+                detect_json,
                 args.output_path,
-                args.new_logo_url,
-                args.intro_url,
-                args.work_dir,
-                args.flip,
-                args.zoom,
-                args.brightness,
-                args.saturation,
-                args.hue,
-                args.background_music,
-                args.remove_text,
-                args.ai_dubbing,
-                gemini_key,
-                openai_key,
-                args.filter_nsfw,
-                args.tts_voice,
-                args.target_language,
-                args.caption_enabled,
-                args.caption_font,
-                args.caption_size,
-                args.caption_color,
-                args.caption_position,
-                float(args.video_speed)
+                intro_url=args.intro_url,
+                work_dir=args.work_dir,
+                flip=args.flip,
+                zoom=args.zoom,
+                speed=args.speed,
+                brightness=args.brightness,
+                saturation=args.saturation,
+                hue=args.hue,
+                background_music=args.background_music,
+                bg_music_volume=args.bg_music_volume,
+                remove_text=args.remove_text,
+                ocr_languages=args.ocr_languages,
+                gemini_key=args.gemini_key,
+                filter_nsfw=args.filter_nsfw,
+                ffmpeg_preset=args.ffmpeg_preset,
+                split_mode=args.split_mode,
+                split_start=args.split_start,
+                split_duration=args.split_duration,
+                split_limit=args.split_limit,
+                unique_mode=args.unique,
+                watermark_text=args.watermark,
+                watermark_opacity=getattr(args, 'watermark_opacity', 0.15),
+                watermark_size=getattr(args, 'watermark_size', 18),
+                watermark_speed=getattr(args, 'watermark_speed', 50),
+                watermark_position=getattr(args, 'watermark_position', 'bottom')
             )
             print(json.dumps({"success": True, "output": output}))
         except Exception as e:
-            print(f"Error in pipeline: {e}", file=sys.stderr)
+            print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
 if __name__ == "__main__":

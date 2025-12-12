@@ -1,5 +1,5 @@
 ---
-trigger: glob
+trigger: always_on
 ---
 
 # Rules Index - N8N Workflow Development

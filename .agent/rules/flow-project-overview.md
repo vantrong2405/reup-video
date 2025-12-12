@@ -1,5 +1,5 @@
 ---
-trigger: glob
+trigger: always_on
 ---
 
 # Flow Project Overview: YouTube Video Processing & Publishing

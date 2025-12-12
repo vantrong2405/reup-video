@@ -6,154 +6,274 @@ import subprocess
 import re
 from pathlib import Path
 
-# Try to import TextService and AIService
-HAS_TEXT_SERVICE = False
-try:
-    from service.text_service import TextService
-    HAS_TEXT_SERVICE = True
-except ImportError:
-    pass
+from service.text_service import TextService
+from service.nsfw_service import NSFWService
+from service.ai_service import AIService
+from utils.command_utils import CommandUtils
+from utils.file_utils import FileUtils
+from utils.video_utils import VideoUtils
+from utils.signature_utils import SignatureUtils
 
-HAS_AI_SERVICE = False
-try:
-    from service.ai_service import AIService
-    HAS_AI_SERVICE = True
-except ImportError:
-    pass
-
-HAS_NSFW_SERVICE = False
-try:
-    from service.nsfw_service import NSFWService
-    HAS_NSFW_SERVICE = True
-except ImportError:
-    pass
+DEFAULT_FFMPEG_PRESET = "veryfast"
+DEFAULT_BG_MUSIC_VOLUME = 0.3
+DEFAULT_LOGO_WIDTH = 220
+DEFAULT_LOGO_PADDING = 10
+DEFAULT_LOGO_POSITION = "top-right"
+DEFAULT_OCR_EXPAND = 10
+DEFAULT_OCR_FRAMES = 2
+DEFAULT_SPLIT_DURATION = 10.0
+DEFAULT_SPLIT_MIN = 5.0
+DEFAULT_SPLIT_LIMIT = 5
 
 class VideoService:
-    @staticmethod
-    def _run_command(command, check=True):
-        print(f"Running command: {command}")
-        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if check and result.returncode != 0:
-            print(f"Command failed with output:\n{result.stdout}\n{result.stderr}", file=sys.stderr)
-            raise subprocess.CalledProcessError(result.returncode, command, result.stdout, result.stderr)
-        return result
 
     @staticmethod
-    def _download_file(url, output_path):
-        print(f"Downloading from {url} to {output_path}")
-        if url.startswith("file://"):
-            local_path = url[7:]
-            if os.path.exists(local_path):
-                 shutil.copy(local_path, output_path)
-                 return
-        elif os.path.exists(url):
-             shutil.copy(url, output_path)
-             return
+    def process_pipeline(video_input, logo_input, detect_json_str, output_path, new_logo_url=None, intro_url=None, work_dir="/tmp",
+                         flip=False, zoom=1.0, speed=1.0, brightness=0.0, saturation=1.0, hue=0.0, background_music=None, remove_text=False,
+                         filter_nsfw=False, logo_width=DEFAULT_LOGO_WIDTH, logo_height=None, logo_padding=DEFAULT_LOGO_PADDING, logo_position=DEFAULT_LOGO_POSITION,
+                         ffmpeg_preset=DEFAULT_FFMPEG_PRESET, delogo_expand=0, bg_music_volume=DEFAULT_BG_MUSIC_VOLUME, ocr_languages=['en'],
+                         ocr_expand=DEFAULT_OCR_EXPAND, ocr_max_frames=DEFAULT_OCR_FRAMES, gemini_key=None,
+                         split_mode='none', split_start="00:00:00", split_duration=DEFAULT_SPLIT_DURATION, split_min_duration=DEFAULT_SPLIT_MIN, split_limit=DEFAULT_SPLIT_LIMIT,
+                         unique_mode=False, watermark_text=None, watermark_opacity=0.15, watermark_size=18, watermark_speed=50, watermark_position="bottom"):
+        work_dir = Path(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
 
-        final_url = url
-        if "drive.google.com" in url:
-            file_id = None
-            match = re.search(r'/d/([^/]*)/', url)
-            if match:
-                file_id = match.group(1)
+        current_input = video_input
+
+        if split_mode != 'none':
+            print(f"--- Step -1: Splitting Video ({split_mode}) ---")
+            split_files = VideoService.split_video_raw(
+                video_input, work_dir, split_mode, split_start, split_duration, split_min_duration, split_limit, Path(video_input).stem
+            )
+            if split_files:
+                current_input = split_files[0]
+                print(f"Using split video as input: {current_input}")
             else:
-                match = re.search(r'[?&]id=([^&]*)', url)
-                if match:
-                    file_id = match.group(1)
+                raise ValueError(f"Split mode '{split_mode}' failed to produce any output files.")
 
-            if not file_id and re.match(r'^[a-zA-Z0-9_-]+$', url):
-                 file_id = url
+        if filter_nsfw:
+            print("--- Step 0: NSFW Filtering ---")
+            filtered_video = work_dir / f"nsfw_filtered_{Path(video_input).stem}.mp4"
+            processed_video = NSFWService.filter_video(current_input, str(filtered_video), work_dir)
+            if processed_video != current_input:
+                current_input = processed_video
 
-            if file_id:
-                final_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        temp_processed_logo = work_dir / f"temp_logo_processed_{Path(video_input).stem}.mp4"
 
-        cmd = f"wget -O \"{output_path}\" \"{final_url}\""
-        VideoService._run_command(cmd)
+        print("--- Step 1: Processing Logo & Effects ---")
+        VideoService.process_logo(
+            current_input, logo_input, detect_json_str, temp_processed_logo, new_logo_url,
+            flip, zoom, speed, brightness, saturation, hue, background_music, remove_text,
+            filter_nsfw=filter_nsfw,
+            logo_width=logo_width, logo_height=logo_height, logo_padding=logo_padding, logo_position=logo_position,
+            ffmpeg_preset=ffmpeg_preset, delogo_expand=delogo_expand, bg_music_volume=bg_music_volume, ocr_languages=ocr_languages,
+            ocr_expand=ocr_expand, ocr_max_frames=ocr_max_frames, gemini_key=gemini_key,
+            unique_mode=unique_mode, watermark_text=watermark_text, watermark_opacity=watermark_opacity,
+            watermark_size=watermark_size, watermark_speed=watermark_speed, watermark_position=watermark_position
+        )
 
-        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            raise Exception(f"Downloaded file is empty or not found: {output_path}")
+        current_video_stage = temp_processed_logo
+
+        print("--- Step 2: Inserting Intro ---")
+        final_output = VideoService.insert_intro(current_video_stage, intro_url, output_path, work_dir)
+
+        return final_output
 
     @staticmethod
     def process_logo(video_input, logo_input, detect_json_str, output_file, new_logo_url=None,
-                     flip=False, zoom=1.0, brightness=0.0, saturation=1.0, hue=0.0, background_music=None,
-                     remove_text=False):
+                     flip=False, zoom=1.0, speed=1.0, brightness=0.0, saturation=1.0, hue=0.0, background_music=None, remove_text=False,
+                     filter_nsfw=False, logo_width=DEFAULT_LOGO_WIDTH, logo_height=None, logo_padding=DEFAULT_LOGO_PADDING, logo_position=DEFAULT_LOGO_POSITION,
+                     ffmpeg_preset=DEFAULT_FFMPEG_PRESET, delogo_expand=0, bg_music_volume=DEFAULT_BG_MUSIC_VOLUME, ocr_languages=['en'],
+                     ocr_expand=DEFAULT_OCR_EXPAND, ocr_max_frames=DEFAULT_OCR_FRAMES, gemini_key=None,
+                     unique_mode=False, watermark_text=None, watermark_opacity=0.15, watermark_size=18, watermark_speed=50, watermark_position="bottom"):
         video_input = Path(video_input)
         logo_input = Path(logo_input)
         output_file = Path(output_file)
 
-        if not video_input.exists():
-            raise FileNotFoundError(f"Video file not found: {video_input}")
+        VideoService._ensure_inputs(video_input, logo_input, new_logo_url)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
+        old_logo_found, box = VideoService._parse_logo_detection(detect_json_str)
+        video_info = VideoUtils.get_video_info(video_input)
+        vid_w = video_info["width"]
+        vid_h = video_info["height"]
+        has_audio = video_info["has_audio"]
+
+        filter_complex_parts, final_video_stream = VideoService._build_visual_filters(
+            video_input, "[0:v]", old_logo_found, box, vid_w, vid_h,
+            delogo_expand, logo_width, logo_height, logo_padding, logo_position,
+            flip, zoom, speed, brightness, saturation, hue, remove_text, ocr_languages,
+            ocr_expand=ocr_expand, ocr_max_frames=ocr_max_frames, gemini_key=gemini_key,
+            unique_mode=unique_mode, watermark_text=watermark_text, watermark_opacity=watermark_opacity,
+            watermark_size=watermark_size, watermark_speed=watermark_speed, watermark_position=watermark_position
+        )
+
+        visual_filter_str = ";".join(filter_complex_parts)
+
+        input_music_flag, audio_map_arg, final_filter_complex = VideoService._build_audio_config(
+            background_music, bg_music_volume, speed, visual_filter_str, has_audio, unique_mode
+        )
+
+        vid_map_arg = f"-map \"{final_video_stream}\""
+
+        cmd_parts = [
+            f"ffmpeg -y",
+            f"-i \"{video_input}\"",
+            f"-i \"{logo_input}\"",
+            f"{input_music_flag}",
+            f"-filter_complex \"{final_filter_complex}\"",
+            f"{vid_map_arg} {audio_map_arg}"
+        ]
+
+        if unique_mode:
+             print("Applying Unique Signature Metadata...")
+             metadata = SignatureUtils.get_random_metadata()
+             for k, v in metadata.items():
+                 cmd_parts.append(f"-metadata {k}='{v}'")
+
+        cmd_parts.append(f"-c:v libx264 -preset {ffmpeg_preset} -crf 25")
+        cmd_parts.append(f"-c:a aac -ar 44100 -b:a 128k")
+        cmd_parts.append(f"\"{output_file}\"")
+
+        cmd = " ".join(cmd_parts)
+        print(f"Executing FFmpeg: {cmd[:200]}...")
+        
+        CommandUtils.run_command(cmd)
+
+        if not output_file.exists():
+            raise Exception("FFmpeg failed to create output file")
+
+        return str(output_file)
+
+    @staticmethod
+    def split_video_raw(input_path, output_dir, mode='manual', start_time="00:00:00", duration=10.0, min_duration=5.0, limit=5, base_name="video"):
+        input_path = Path(input_path)
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        split_files = []
+
+        if mode == 'manual':
+            out_file = output_dir / f"{base_name}_cut_manual.mp4"
+            cmd = f"ffmpeg -y -ss {start_time} -i \"{input_path}\" -t {duration} -c:v libx264 -preset veryfast -crf 23 -c:a aac \"{out_file}\""
+            CommandUtils.run_command(cmd)
+            if out_file.exists() and out_file.stat().st_size > 0:
+                split_files.append(str(out_file))
+        elif mode == 'auto':
+            detect_cmd = f"ffmpeg -i \"{input_path}\" -vf \"select='gt(scene,0.4)',showinfo\" -f null -"
+            result = subprocess.run(detect_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            timestamps = [0.0]
+            for line in result.stderr.split('\n'):
+                if "pts_time:" in line:
+                    m = re.search(r'pts_time:([0-9.]+)', line)
+                    if m: timestamps.append(float(m.group(1)))
+            dur_cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{input_path}\""
+            total_duration = float(subprocess.check_output(dur_cmd, shell=True).strip())
+            timestamps.append(total_duration)
+            segments = [(timestamps[i], timestamps[i+1] - timestamps[i]) for i in range(len(timestamps)-1) if timestamps[i+1] - timestamps[i] >= min_duration][:limit]
+            for idx, (start, dur) in enumerate(segments):
+                out_file = output_dir / f"{base_name}_scene_{idx+1}.mp4"
+                cmd = f"ffmpeg -y -ss {start} -i \"{input_path}\" -t {dur} -c copy -avoid_negative_ts 1 \"{out_file}\""
+                CommandUtils.run_command(cmd)
+                if out_file.exists(): split_files.append(str(out_file))
+        return split_files
+
+    @staticmethod
+    def insert_intro(video_input_path, intro_url, output_path, work_dir_path):
+        video_input = Path(video_input_path)
+        output_path = Path(output_path)
+        work_dir = Path(work_dir_path)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        intro_video_path = work_dir / f"intro_{video_input.stem}.mp4"
+        intro_scaled_path = work_dir / f"intro_scaled_{video_input.stem}.mp4"
+
+        if not video_input.exists():
+             raise FileNotFoundError(f"Processed video not found: {video_input}")
+
+        if not intro_url:
+            shutil.copy(video_input, output_path)
+            return str(output_path)
+
+        FileUtils.download_file(intro_url, str(intro_video_path))
+        main_info = VideoUtils.get_video_info(video_input)
+        intro_info = VideoUtils.get_video_info(intro_video_path)
+
+        scale_filter = f"scale={main_info['width']}:{main_info['height']}:force_original_aspect_ratio=decrease,pad={main_info['width']}:{main_info['height']}:(ow-iw)/2:(oh-ih)/2:black,fps={main_info['fps']}"
+        
+        intro_cmd = f"ffmpeg -y -i \"{intro_video_path}\""
+        if main_info['has_audio']:
+            if intro_info['has_audio']:
+                intro_cmd += f" -vf \"{scale_filter}\" -af \"aresample=48000\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -ar 48000 \"{intro_scaled_path}\""
+            else:
+                intro_cmd += f" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 -vf \"{scale_filter}\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -ar 48000 -shortest \"{intro_scaled_path}\""
+        else:
+            intro_cmd += f" -vf \"{scale_filter}\" -c:v libx264 -preset veryfast -crf 23 -an \"{intro_scaled_path}\""
+        CommandUtils.run_command(intro_cmd)
+
+        if main_info['has_audio']:
+            concat_cmd = f"ffmpeg -y -i \"{intro_scaled_path}\" -i \"{video_input}\" -filter_complex \"[0:a]aresample=48000[a0];[0:v][a0][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\" -c:v libx264 -preset veryfast -crf 23 -c:a aac -ar 48000 \"{output_path}\""
+        else:
+            concat_cmd = f"ffmpeg -y -i \"{intro_scaled_path}\" -i \"{video_input}\" -filter_complex \"[0:v][1:v]concat=n=2:v=1[outv]\" -map \"[outv]\" -c:v libx264 -preset veryfast -crf 23 \"{output_path}\""
+        CommandUtils.run_command(concat_cmd)
+
+        for f in [intro_scaled_path, intro_video_path]:
+            if f.exists(): f.unlink()
+        return str(output_path)
+
+    @staticmethod
+    def _ensure_inputs(video_input, logo_input, new_logo_url):
+        if not video_input.exists():
+            raise FileNotFoundError(f"Video not found: {video_input}")
         if not logo_input.exists():
             if not new_logo_url:
-                raise Exception(f"Logo file not found and new_logo_url is empty: {logo_input}")
+                raise Exception(f"Logo not found: {logo_input}")
             logo_input.parent.mkdir(parents=True, exist_ok=True)
-            VideoService._download_file(new_logo_url, str(logo_input))
+            FileUtils.download_file(new_logo_url, str(logo_input))
 
+    @staticmethod
+    def _parse_logo_detection(detect_json_str):
         detected_data = {"logos": [], "count": 0}
         try:
             json_match = re.search(r'\{.*"logos".*\}', detect_json_str)
             if json_match: detect_json_str = json_match.group(0)
-            detected_data = json.loads(detect_json_str)
-        except:
-            print(f"Warning: Failed to parse detect_json.")
-
+            parsed = json.loads(detect_json_str)
+            if isinstance(parsed, dict): detected_data = parsed
+            elif isinstance(parsed, list): detected_data = {"logos": parsed, "count": len(parsed)}
+        except: pass
         logos = detected_data.get("logos", [])
         box = {"x": 0, "y": 0, "width": 0, "height": 0}
-        old_logo_found = False
-        if len(logos) > 0:
-            old_logo_found = True
+        old_logo_found = len(logos) > 0
+        if old_logo_found:
             l = logos[0]
             box = {k: int(l.get(k, 0)) for k in ["x", "y", "width", "height"]}
+        return old_logo_found, box
 
-        try:
-            cmd_w = f"ffprobe -v error -select_streams v:0 -show_entries stream=width  -of csv=p=0 \"{video_input}\""
-            vid_w = int(VideoService._run_command(cmd_w).stdout.strip() or 0)
-            cmd_h = f"ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 \"{video_input}\""
-            vid_h = int(VideoService._run_command(cmd_h).stdout.strip() or 0)
-        except Exception:
-            vid_w, vid_h = 0, 0
-
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-
-        current_stream = "[0:v]"
+    @staticmethod
+    def _build_visual_filters(video_input, current_stream, old_logo_found, box, vid_w, vid_h,
+                              delogo_expand, logo_width, logo_height, logo_padding, logo_position,
+                              flip, zoom, speed, brightness, saturation, hue, remove_text, ocr_languages=['en'],
+                              ocr_expand=DEFAULT_OCR_EXPAND, ocr_max_frames=DEFAULT_OCR_FRAMES, gemini_key=None,
+                              unique_mode=False, watermark_text=None, watermark_opacity=0.15, watermark_size=18, watermark_speed=50, watermark_position="bottom"):
         filter_parts = []
 
         if old_logo_found:
-            # User requested "overlay 4 phía logo mới cho gọn" -> Tight fit
-            expand = 0 # No extra black box expansion
-            dx = max(0, box["x"] - expand)
-            dy = max(0, box["y"] - expand)
-            dw = box["width"] + expand * 2
-            dh = box["height"] + expand * 2
+            expand = delogo_expand
+            dx, dy = max(0, box["x"] - expand), max(0, box["y"] - expand)
+            dw, dh = box["width"] + expand * 2, box["height"] + expand * 2
             if vid_w > 0: dw = min(dw, vid_w - dx)
             if vid_h > 0: dh = min(dh, vid_h - dy)
-
             filter_parts.append(f"{current_stream}delogo=x={dx}:y={dy}:w={dw}:h={dh}[v_delogo]")
             current_stream = "[v_delogo]"
-            # Drawbox helps if new logo has transparency, but keep it tight
             filter_parts.append(f"{current_stream}drawbox=x={dx}:y={dy}:w={dw}:h={dh}:color=black@1.0:t=fill[v_clean]")
             current_stream = "[v_clean]"
-            
-            # CRITICAL FIX: Apply logo overlay IMMEDIATELY after drawbox, BEFORE zoom/flip
-            # This ensures logo and black box get same coordinate transformation
-            new_w = dw
-            new_h = dh
-            new_x = dx
-            new_y = dy
-            filter_parts.append(f"[1:v]scale={new_w}:{new_h}[logo]")
-            filter_parts.append(f"{current_stream}[logo]overlay={new_x}:{new_y}[v_with_logo]")
+            filter_parts.append(f"[1:v]scale={dw}:{dh}[logo]")
+            filter_parts.append(f"{current_stream}[logo]overlay={dx}:{dy}[v_with_logo]")
             current_stream = "[v_with_logo]"
 
-        if remove_text and HAS_TEXT_SERVICE:
-            print("DEBUG: Running OCR...")
-            try:
-                ocr_filters, _ = TextService.generate_mask_filters(video_input)
-                if ocr_filters:
-                    filter_parts.append(f"{current_stream}{ocr_filters}[v_text_removed]")
-                    current_stream = "[v_text_removed]"
-            except Exception as e:
-                print(f"OCR Failed: {e}")
+        if remove_text:
+            ocr_filters, _ = TextService.generate_mask_filters(video_input, languages=ocr_languages, expand=ocr_expand, max_frames=ocr_max_frames, vid_w=vid_w, vid_h=vid_h)
+            if ocr_filters:
+                filter_parts.append(f"{current_stream}{ocr_filters}[v_text_removed]")
+                current_stream = "[v_text_removed]"
 
         if flip:
             filter_parts.append(f"{current_stream}hflip[v_flipped]")
@@ -171,304 +291,57 @@ class VideoService:
             filter_parts.append(f"{current_stream}{','.join(effects)}[v_colored]")
             current_stream = "[v_colored]"
 
-        # Handle case when no old logo was found - place logo at corner
+        if speed != 1.0:
+            filter_parts.append(f"{current_stream}setpts={1.0/speed}*PTS[v_speed]")
+            current_stream = "[v_speed]"
+
+        if unique_mode:
+            print("Applying Unique Visual Signature...")
+            unique_filters = SignatureUtils.get_visual_filters()
+            filter_parts.append(f"{current_stream}{','.join(unique_filters)}[v_unique]")
+            current_stream = "[v_unique]"
+
+        if watermark_text:
+            print(f"Applying Watermark: {watermark_text}")
+            wm_filter = SignatureUtils.get_watermark_filter_static(watermark_text, watermark_opacity, watermark_size, watermark_position)
+            if wm_filter:
+                filter_parts.append(f"{current_stream}{wm_filter}[v_watermark]")
+                current_stream = "[v_watermark]"
+
         if not old_logo_found:
-            padding = 10
-            new_w, new_h = 220, 110
-            new_x = vid_w - new_w - padding if vid_w > 0 else 10
-            new_y = padding
-            if flip and vid_w > 0:
-                new_x = vid_w - new_x - new_w
+            padding = logo_padding
+            new_w, new_h = logo_width, logo_height if logo_height else -1
+            pos_map = {"top-right": (f"W-w-{padding}", f"{padding}"), "top-left": (f"{padding}", f"{padding}"),
+                       "bottom-right": (f"W-w-{padding}", f"H-h-{padding}"), "bottom-left": (f"{padding}", f"H-h-{padding}")}
+            x_expr, y_expr = pos_map.get(logo_position, pos_map["top-right"])
             filter_parts.append(f"[1:v]scale={new_w}:{new_h}[logo]")
-            filter_parts.append(f"{current_stream}[logo]overlay={new_x}:{new_y}[v_with_logo]")
+            filter_parts.append(f"{current_stream}[logo]overlay={x_expr}:{y_expr}[v_with_logo]")
             current_stream = "[v_with_logo]"
 
-        # Rename final stream for consistency
-        if current_stream != "[v_final]":
-            # Use nullsink workaround or just use current stream as final
-            pass
-        
-        # Replace last stream label with v_final for the ffmpeg command
         if filter_parts:
             last_filter = filter_parts[-1]
-            # Replace the output label with [v_final]
-            import re
-            filter_parts[-1] = re.sub(r'\[v_\w+\]$', '[v_final]', last_filter)
-
-        filter_complex = ";".join(filter_parts)
-
-        audio_stream = "-map 0:a?"
-        input_music = ""
-        if background_music and Path(background_music).exists():
-              input_music = f"-stream_loop -1 -i \"{background_music}\""
-              audio_stream = "-map 2:a -shortest"
-
-        cmd = (
-            f"nice -n 10 ffmpeg -y "
-            f"-i \"{video_input}\" "
-            f"-i \"{logo_input}\" "
-            f"{input_music} "
-            f"-filter_complex \"{filter_complex}\" "
-            f"-map \"[v_final]\" {audio_stream} "
-            f"-c:v libx264 -preset veryfast -crf 25 "
-            f"-c:a aac -ar 44100 -b:a 128k "
-            f"\"{output_file}\""
-        )
-
-        VideoService._run_command(cmd)
-
-        if not output_file.exists():
-            raise Exception("Main FFmpeg failed to create output file")
-
-        return str(output_file)
+            if re.search(r'\[\w+\]$', last_filter):
+                filter_parts[-1] = re.sub(r'\[\w+\]$', '[v_final]', last_filter)
+        return filter_parts, "[v_final]" if filter_parts else current_stream
 
     @staticmethod
-    def process_ai_dubbing(video_path, gemini_api_key, work_dir="/tmp", openai_key=None, tts_voice="",
-                           target_language=None, caption_enabled=False, caption_font="Arial", caption_size="24",
-                           caption_color="&H00FFFF", caption_position="bottom", video_speed=1.0, audio_source_path=None):
-        if not HAS_AI_SERVICE:
-            print("AI Service dependencies not installed. Skipping AI Dubbing.")
-            return video_path
-
-        work_dir = Path(work_dir)
-        video_stem = Path(video_path).stem
-        
-        # Use separate source for audio extraction if provided, else use video_path
-        extract_source = audio_source_path if audio_source_path else video_path
-        
-        audio_ext = work_dir / f"{video_stem}_extracted.mp3"
-        audio_tts = work_dir / f"{video_stem}_tts_new.mp3"
-        srt_path = work_dir / f"{video_stem}.srt"
-        video_output = work_dir / f"{video_stem}_dubbed.mp4"
-
-        try:
-            print(f"--- AI Dubbing Step 1: Extract Audio (Source: {extract_source}) ---")
-            cmd = f"ffmpeg -y -i \"{extract_source}\" -q:a 0 -map a \"{audio_ext}\""
-            VideoService._run_command(cmd)
-
-            print("--- AI Dubbing Step 2: Transcribe (Whisper) ---")
-            original_text = AIService.transcribe_audio(audio_ext)
-            print(f"Original Text: {original_text[:100]}...")
-
-            print("--- AI Dubbing Step 3: Rewrite & Translate (Gemini) ---")
-            new_script = AIService.rewrite_text(original_text, gemini_api_key, target_language)
-            print(f"New Script (Target Lang: {target_language}): {new_script[:100]}...")
-
-            print("--- AI Dubbing Step 4: TTS ---")
-            if openai_key: print("Using OpenAI TTS")
-            AIService.run_tts_sync(new_script, audio_tts, openai_key=openai_key, voice=tts_voice, language=target_language)
-
-            srt_filter = ""
-            if caption_enabled:
-                 print("--- AI Dubbing Step 4.5: Generating Subtitles (Whisper) ---")
-                 AIService.transcribe_audio_to_srt(audio_tts, srt_path)
-
-                 # Configure ASS style
-                 # Alignment: 2=Bottom Center, 5=Top Center? No, ASS Alignment: 2 is Bottom Center.
-                 align = 2 # Default bottom
-                 if caption_position.lower() == "center": align = 5
-                 if caption_position.lower() == "top": align = 6
-
-                 # ForceStyle string
-                 style = f"Fontname={caption_font},FontSize={caption_size},PrimaryColour={caption_color},Alignment={align},Outline=1,Shadow=1"
-                 # Escape colons in Windows paths if needed, but we are on Linux.
-                 # Filter complex requires escaping
-                 escaped_srt = str(srt_path).replace(":", "\\:").replace("'", "\\'")
-                 srt_filter = f"subtitles='{escaped_srt}':force_style='{style}'"
-
-            print("--- AI Dubbing Step 5: Merge Audio & Subtitles & Speed ---")
-
-            cmd_merge = ""
-
-            # Build filters
-            v_filters = []
-            if srt_filter: v_filters.append(srt_filter)
-            if video_speed != 1.0: v_filters.append(f"setpts=PTS/{video_speed}")
-
-            a_filters = []
-            if video_speed != 1.0: a_filters.append(f"atempo={video_speed}")
-
-            if v_filters or a_filters:
-                 # Complex filter chain
-                 # Video chain: [0:v] -> filters -> [v_out]
-                 # Audio chain: [1:a] -> filters -> [a_out]
-
-                 filter_str = ""
-                 map_v = "0:v"
-                 map_a = "1:a"
-
-                 if v_filters:
-                     filter_str += f"[0:v]{','.join(v_filters)}[v_out];"
-                     map_v = "[v_out]"
-
-                 if a_filters:
-                     filter_str += f"[1:a]{','.join(a_filters)}[a_out]"
-                     map_a = "[a_out]"
-                 else:
-                     if filter_str.endswith(";"): filter_str = filter_str[:-1]
-
-                 cmd_merge = (
-                    f"ffmpeg -y -i \"{video_path}\" -i \"{audio_tts}\" "
-                    f"-filter_complex \"{filter_str}\" "
-                    f"-map \"{map_v}\" -map \"{map_a}\" "
-                    f"-c:v libx264 -preset veryfast -crf 23 "
-                    f"-c:a aac -b:a 192k -shortest "
-                    f"\"{video_output}\""
-                 )
-            else:
-                # Original merge logic if no filters
-                cmd_merge = (
-                    f"ffmpeg -y -i \"{video_path}\" -i \"{audio_tts}\" "
-                    f"-c:v copy -map 0:v -map 1:a -shortest \"{video_output}\""
-                )
-
-            VideoService._run_command(cmd_merge)
-
-            return str(video_output)
-
-        except Exception as e:
-            print(f"AI Dubbing failed: {e}")
-            # Fallback: return original video
-            return str(video_path)
-
-    @staticmethod
-    def process_pipeline(video_input, logo_input, detect_json_str, output_path, new_logo_url=None, intro_url=None, work_dir="/tmp",
-                         flip=False, zoom=1.0, brightness=0.0, saturation=1.0, hue=0.0, background_music=None, remove_text=False,
-                         ai_dubbing=False, gemini_api_key=None, openai_key=None, filter_nsfw=False, tts_voice="",
-                         target_language=None, caption_enabled=False, caption_font="Arial", caption_size="24",
-                         caption_color="&H00FFFF", caption_position="bottom", video_speed=1.0):
-        work_dir = Path(work_dir)
-        work_dir.mkdir(parents=True, exist_ok=True)
-
-        current_input = video_input
-
-        if filter_nsfw:
-            if HAS_NSFW_SERVICE:
-                print("--- Step 0: NSFW Filtering ---")
-                filtered_video = work_dir / f"nsfw_filtered_{Path(video_input).stem}.mp4"
-                processed_video = NSFWService.filter_video(current_input, str(filtered_video), work_dir)
-                if processed_video != current_input:
-                    current_input = processed_video
-                    print(f"NSFW Filter applied. New input: {current_input}")
-                else:
-                    print("No NSFW content detected.")
-            else:
-                print("Warning: NSFW Service not available. Skipping filter.")
-
-        temp_processed_logo = work_dir / f"temp_logo_processed_{Path(video_input).stem}.mp4"
-
-        print("--- Step 1: Processing Logo & Effects ---")
-        VideoService.process_logo(
-            current_input, logo_input, detect_json_str, temp_processed_logo, new_logo_url,
-            flip, zoom, brightness, saturation, hue, background_music, remove_text
-        )
-
-        current_video_stage = temp_processed_logo
-        if ai_dubbing and gemini_api_key:
-            print("--- Step 1.5: AI Dubbing ---")
-            dubbed_output = VideoService.process_ai_dubbing(
-                current_video_stage, gemini_api_key, work_dir, openai_key, tts_voice,
-                target_language, caption_enabled, caption_font, caption_size, caption_color, caption_position, video_speed,
-                audio_source_path=video_input
-            )
-            current_video_stage = Path(dubbed_output)
-
-        print("--- Step 2: Inserting Intro ---")
-        final_output = VideoService.insert_intro(current_video_stage, intro_url, output_path, work_dir)
-
-        if temp_processed_logo.exists() and temp_processed_logo != current_video_stage:
-             try: temp_processed_logo.unlink()
-             except: pass
-
-        return final_output
-
-    @staticmethod
-    def insert_intro(video_input_path, intro_url, output_path, work_dir_path):
-        video_input = Path(video_input_path)
-        output_path = Path(output_path)
-        work_dir = Path(work_dir_path)
-        work_dir.mkdir(parents=True, exist_ok=True)
-
-        video_output_temp = work_dir / f"{video_input.stem}_temp_concat.mp4"
-        intro_video_path = work_dir / f"intro_{video_input.stem}.mp4"
-        intro_scaled_path = work_dir / f"intro_scaled_{video_input.stem}.mp4"
-
-        if not video_input.exists():
-             raise FileNotFoundError(f"Processed video file not found: {video_input}")
-
-        if not intro_url:
-            shutil.copy(video_input, output_path)
-            return str(output_path)
-
-        VideoService._download_file(intro_url, str(intro_video_path))
-
-        try:
-            main_w = int(VideoService._run_command(f"ffprobe -v error -select_streams v:0 -show_entries stream=width  -of csv=p=0 \"{video_input}\"").stdout.strip() or 0)
-            main_h = int(VideoService._run_command(f"ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 \"{video_input}\"").stdout.strip() or 0)
-            main_fps = VideoService._run_command(f"ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 \"{video_input}\"").stdout.strip()
-
-            audio_check = VideoService._run_command(f"ffprobe -v error -select_streams a:0 -count_frames -show_entries stream=codec_name -of csv=p=0 \"{video_input}\"", check=False)
-            main_has_audio = bool(audio_check.stdout.strip())
-        except Exception as e:
-            raise Exception(f"Failed to probe main video: {e}")
-
-        intro_has_audio = False
-        if main_has_audio:
-            intro_audio_check = VideoService._run_command(f"ffprobe -v error -select_streams a:0 -count_frames -show_entries stream=codec_name -of csv=p=0 \"{intro_video_path}\"", check=False)
-            intro_has_audio = bool(intro_audio_check.stdout.strip())
-
-        scale_filter = (
-            f"scale={main_w}:{main_h}:force_original_aspect_ratio=decrease,"
-            f"pad={main_w}:{main_h}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            f"fps={main_fps}"
-        )
-
-        intro_cmd_parts = [
-            f"ffmpeg -y -i \"{intro_video_path}\""
-        ]
-
-        if main_has_audio:
-            if intro_has_audio:
-                intro_cmd_parts.append(f"-vf \"{scale_filter}\" -af \"aresample=48000:resampler=soxr\"")
-            else:
-                 intro_cmd_parts.append(
-                     f"-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 "
-                     f"-vf \"{scale_filter}\" -c:a aac -ar 48000 -ac 2 -b:a 128k -shortest"
-                 )
-        else:
-             intro_cmd_parts.append(f"-vf \"{scale_filter}\"")
-
-        intro_cmd_parts.append(f"-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p")
-
-        if main_has_audio and intro_has_audio:
-             intro_cmd_parts.append(f"-c:a aac -ar 48000 -ac 2 -b:a 128k")
-
-        intro_cmd_parts.append(f"\"{intro_scaled_path}\"")
-
-        VideoService._run_command(" ".join(intro_cmd_parts))
-
-        concat_cmd = ""
-        if main_has_audio:
-            concat_cmd = (
-                f"ffmpeg -y -i \"{intro_scaled_path}\" -i \"{video_input}\" "
-                f"-filter_complex \"[0:a]aresample=48000:resampler=soxr[a0];[0:v][a0][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" "
-                f"-map \"[outv]\" -map \"[outa]\" "
-                f"-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p "
-                f"-c:a aac -ar 48000 -ac 2 -b:a 128k "
-                f"\"{output_path}\""
-            )
-        else:
-            concat_cmd = (
-                f"ffmpeg -y -i \"{intro_scaled_path}\" -i \"{video_input}\" "
-                f"-filter_complex \"[0:v][1:v]concat=n=2:v=1[outv]\" "
-                f"-map \"[outv]\" "
-                f"-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p "
-                f"\"{output_path}\""
-            )
-
-        VideoService._run_command(concat_cmd)
-
-        if intro_scaled_path.exists(): intro_scaled_path.unlink()
-        if intro_video_path.exists(): intro_video_path.unlink()
-
-        return str(output_path)
+    def _build_audio_config(background_music, bg_music_volume, speed, filter_complex_str, original_has_audio=True, unique_mode=False):
+        if not (background_music and Path(background_music).exists()):
+            if speed != 1.0:
+                if not original_has_audio: return "", "", filter_complex_str
+                audio_filter = f"[0:a]atempo={speed}[a_out]"
+                filter_complex_str = f"{filter_complex_str};{audio_filter}" if filter_complex_str else audio_filter
+                return "", "-map \"[a_out]\"", filter_complex_str
+            if original_has_audio:
+                if unique_mode:
+                    audio_sig = ",".join(SignatureUtils.get_audio_filters())
+                    audio_filter = f"[0:a]{audio_sig}[a_out]"
+                    filter_complex_str = f"{filter_complex_str};{audio_filter}" if filter_complex_str else audio_filter
+                    return "", "-map \"[a_out]\"", filter_complex_str
+                return "", "-map \"0:a?\"", filter_complex_str
+            return "", "", filter_complex_str
+        input_music_flag = f"-stream_loop -1 -i \"{background_music}\""
+        audio_setup = f"[0:a]atempo={speed},volume=1.0[a1]" if speed != 1.0 else "[0:a]volume=1.0[a1]"
+        audio_filter = f"{audio_setup};[2:a]volume={bg_music_volume}[a2];[a1][a2]amix=inputs=2:duration=first[a_out]" if original_has_audio else f"[2:a]volume={bg_music_volume}[a_out]"
+        filter_complex_str = f"{filter_complex_str};{audio_filter}" if filter_complex_str else audio_filter
+        return input_music_flag, "-map \"[a_out]\"", filter_complex_str
