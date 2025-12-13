@@ -1,0 +1,1619 @@
+{
+  "name": "test",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const extractTextFromResponse = (response) => {\n  if (Array.isArray(response) && response.length > 0) {\n    const firstItem = response[0];\n    const textPart = firstItem.content?.parts?.[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.candidates && response.candidates.length > 0) {\n    const textPart = response.candidates[0].content?.parts?.find(part => part.text);\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.content?.parts?.length > 0) {\n    const textPart = response.content.parts[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  return null;\n};\n\nconst cleanJsonText = (text) => {\n  let cleaned = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  return jsonMatch ? jsonMatch[0] : cleaned;\n};\n\nconst parseMetadata = (text) => {\n  try {\n    const meta = JSON.parse(text);\n    if (!meta || typeof meta !== 'object') {\n      return { error: 'Parsed result is not an object', raw: meta };\n    }\n    return {\n      youtube_title: meta.youtube_title ? String(meta.youtube_title).trim() : '',\n      youtube_description: meta.youtube_description ? String(meta.youtube_description).trim() : '',\n      raw: meta\n    };\n  } catch (e) {\n    return { error: `Parse error: ${e.message}`, rawText: text.substring(0, 400) };\n  }\n};\n\nconst response = $input.item.json;\n\nif (response.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: `API Error: ${response.error.message || JSON.stringify(response.error)}`,\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst rawText = extractTextFromResponse(response);\nif (!rawText) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: 'No text found in response',\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst cleanedText = cleanJsonText(rawText);\nconst parsed = parseMetadata(cleanedText);\n\nif (parsed.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: parsed.error,\n      valid: false,\n      rawText: parsed.rawText,\n      raw: parsed.raw\n    }\n  };\n}\n\nreturn {\n  json: {\n    youtube_title: parsed.youtube_title,\n    youtube_description: parsed.youtube_description,\n    error: null,\n    valid: !!(parsed.youtube_title && parsed.youtube_description),\n    raw: parsed.raw\n  }\n};"
+      },
+      "id": "838322b4-eb92-44cd-a019-b6c59eb8157b",
+      "name": "Parse Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        640
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        -352
+      ],
+      "id": "8d2c271e-bd8a-4e93-9eb6-0619f565fb24",
+      "name": "Trigger Lịch Trình"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1ZLe3MXQnW_IgaQ2IOf_kd3c4BMy5upHrTFVPlguXnsw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Templates",
+          "mode": "name"
+        },
+        "options": {
+          "headerRow": 2
+        }
+      },
+      "id": "f7d93fe8-4ee2-4e98-bad0-84cdaffaf9d8",
+      "name": "Lấy Thông Tin Video",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        160,
+        -352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IdFF9k2O5WBsk28B",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const generateUuid = () => {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\n\nif (!row.id || !row.video_url) {\n  throw new Error('Missing required field: id or video_url');\n}\n\nreturn {\n  json: {\n    id: row.id,\n    video_title: row.video_title,\n    video_url: row.video_url,\n    driveUuid: generateUuid()\n  }\n};"
+      },
+      "id": "c8013c46-b273-4695-ba77-3b6f461e3779",
+      "name": "Trích Xuất URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -32
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=yt-dlp --no-playlist --print \"%(title)s|%(uploader)s|%(description)s\" --no-warnings \"{{ $('Trích Xuất URL').item.json.video_url }}\" 2>/dev/null || echo \"ERROR|ERROR|ERROR\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        -32
+      ],
+      "id": "c2ecd0fc-95ea-441e-8e3a-d3dca6eac262",
+      "name": "Lấy Metadata YouTube",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const parseYouTubeMetadata = (stdout) => {\n  if (!stdout) return { title: '', description: '' };\n  const parts = stdout.trim().split('|');\n  if (parts.length < 3) return { title: '', description: '' };\n  return {\n    title: parts[0].trim(),\n    description: parts[2].trim().substring(0, 500)\n  };\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\nconst extractResult = $('Lấy Metadata YouTube').item.json;\nconst extractUrl = $('Trích Xuất URL').item.json;\n\nconst ytMeta = parseYouTubeMetadata(extractResult.stdout);\nconst videoTitle = row.video_title && row.video_title.trim() ? row.video_title.trim() : ytMeta.title;\n\nif (!videoTitle) {\n  throw new Error('Cannot extract video title from YouTube');\n}\n\nreturn {\n  json: {\n    ...extractUrl,\n    video_title: videoTitle,\n    youtube_metadata: {\n      title: ytMeta.title,\n      description: ytMeta.description\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        -32
+      ],
+      "id": "b4be59ec-829f-4ee6-a7e5-7d06ac3f86c1",
+      "name": "Gộp Metadata",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=VIDEO_ID=\"{{ $('Gộp Metadata').item.json.id }}\"\nrm -f \"/home/node/downloads/${VIDEO_ID}.mp4\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        -32
+      ],
+      "id": "89109ae8-7411-4812-86e1-b4283ebcc909",
+      "name": "Dọn File Cũ",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=PATH=\"/home/node/.local/bin:$PATH\" yt-dlp --no-playlist -f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\" --merge-output-format mp4 --no-part -o \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" \"{{ $('Gộp Metadata').item.json.video_url }}\" 2>&1 || PATH=\"/home/node/.local/bin:$PATH\" yt-dlp --no-playlist -f \"best[ext=mp4]/best\" --merge-output-format mp4 --no-part -o \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" \"{{ $('Gộp Metadata').item.json.video_url }}\" 2>&1\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        -32
+      ],
+      "id": "b1eb2a3d-b51c-4c44-993a-fefe15321086",
+      "name": "Tải Video",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "=/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        -32
+      ],
+      "id": "65c100b5-a786-4be1-9e47-327e8a8d6f38",
+      "name": "Đọc File Video",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "for (const item of $input.all()) {\n  delete item.binary;\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        -32
+      ],
+      "id": "b59d641c-76e8-4472-8338-4147ba0afe8c",
+      "name": "Xóa Binary Video",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -y -i \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" -vf \"select=eq(n\\,0)\" -q:v 3 \"/home/node/downloads/frame_{{ $('Gộp Metadata').item.json.id }}.jpg\" 2>&1"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        -32
+      ],
+      "id": "d4398a65-fb73-4ee1-a707-4b3cb7a5d73a",
+      "name": "Trích Xuất Frame",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/api/v1/uploads/drive",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "local_path",
+              "value": "/home/node/downloads/{{ $('Gộp Metadata').first().json.id }}_processed.mp4"
+            },
+            {
+              "name": "drive_destination",
+              "value": "gdrive:reup-ytb/{{ $('Gộp Metadata').first().json.driveUuid }}.mp4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "563bfea5-61af-4ccf-b12a-3ca441759953",
+      "name": "Gửi Job Upload (API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1680,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "e360fa3f-8aae-45dd-a337-4b3ffe831ae8",
+      "name": "Chờ Upload",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        272
+      ],
+      "webhookId": "e4cfb9c1-e649-4493-9838-87a23c9aaae8"
+    },
+    {
+      "parameters": {
+        "url": "=http://172.17.0.1:8000/api/v1/jobs/{{ $json.data.job_id }}",
+        "options": {}
+      },
+      "id": "bcea546f-98c2-4125-9d0a-a013595b362b",
+      "name": "Kiểm Tra Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2080,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data.status }}",
+              "value2": "completed"
+            }
+          ]
+        }
+      },
+      "id": "25d2e0fe-f667-4150-94c5-8e75d67c3d72",
+      "name": "Đã Upload Xong?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://172.17.0.1:8000/api/v1/uploads/drive-link",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "drive_path",
+              "value": "gdrive:reup-ytb/{{ $('Gộp Metadata').first().json.driveUuid }}.mp4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2592,
+        256
+      ],
+      "id": "b8b94edd-af4e-4083-b425-c464981d9db9",
+      "name": "Lấy Link Drive",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1ZLe3MXQnW_IgaQ2IOf_kd3c4BMy5upHrTFVPlguXnsw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Templates",
+          "mode": "name"
+        },
+        "options": {
+          "headerRow": 2
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1920,
+        -592
+      ],
+      "id": "05d0a93d-091b-43bd-b52e-2c0ce88be766",
+      "name": "Lấy Info Sau Upload",
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IdFF9k2O5WBsk28B",
+          "name": "Google Sheets account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "value": "1ZLe3MXQnW_IgaQ2IOf_kd3c4BMy5upHrTFVPlguXnsw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Templates",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processed_video_drive_link": "={{ $json.stdout || '' }}",
+            "id": "={{ $('Lấy Thông Tin Video').item.json.id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processed_video_drive_link",
+              "displayName": "processed_video_drive_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "headerRow": 2
+        }
+      },
+      "id": "c33f8d3c-bb11-48e6-9549-8cc5904ef080",
+      "name": "Cập Nhật Link Drive",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2832,
+        256
+      ],
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IdFF9k2O5WBsk28B",
+          "name": "Google Sheets account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1ZLe3MXQnW_IgaQ2IOf_kd3c4BMy5upHrTFVPlguXnsw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Templates",
+          "mode": "name"
+        },
+        "options": {
+          "headerRow": 2
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        3056,
+        240
+      ],
+      "id": "044cfa50-0a2d-4503-92ea-e0c791f11f13",
+      "name": "Lấy Info Check YT",
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IdFF9k2O5WBsk28B",
+          "name": "Google Sheets account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ready-to-publish-check",
+              "leftValue": "={{ $json.publish_status && $json.publish_status.toString().trim().toLowerCase() }}",
+              "rightValue": "=pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "enable-youtube-upload-check",
+              "leftValue": "={{ $json.enable_youtube_upload }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "drive-link-check",
+              "leftValue": "={{ $json.processed_video_drive_link }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "youtube-privacy-check",
+              "leftValue": "={{ $json.youtube_privacy }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3392,
+        -304
+      ],
+      "id": "765fa956-0f91-4e9d-b6e9-46f4d09fe637",
+      "name": "Check Upload YT (Sau Drive)",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/api/v1/logos/detect",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_path",
+              "value": "/home/node/downloads/frame_{{ $('Gộp Metadata').item.json.id }}.jpg"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00526eb5-381c-4d5d-a710-96927dd55341",
+      "name": "Phát Hiện Logo (API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2832,
+        -32
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=VIDEO_ID=\"{{ $json.id }}\"\nLINK=\"{{ $json.processed_video_drive_link }}\"\n\n[ -z \"$LINK\" ] && exit 0\n\nFILE_ID=$(echo \"$LINK\" | sed -n 's/.*\\/d\\/\\([^\\/]*\\)\\/.*/\\1/p')\n[ -z \"$FILE_ID\" ] && FILE_ID=$(echo \"$LINK\" | sed -n 's/.*[?&]id=\\([^&]*\\).*/\\1/p')\n[ -z \"$FILE_ID\" ] && echo \"$LINK\" | grep -qE '^[a-zA-Z0-9_-]+$' && FILE_ID=\"$LINK\"\n[ -z \"$FILE_ID\" ] && exit 0\n\nURL=\"https://drive.google.com/uc?export=download&id=${FILE_ID}\"\n\nheader=$(wget --server-response --spider -q \"$URL\" 2>&1)\nname=$(echo \"$header\" | sed -n 's/.*filename=\"\\([^\"]*\\)\".*/\\1/p')\n\n[ -z \"$name\" ] && name=\"${VIDEO_ID}.mp4\"\n\nmkdir -p /home/node/downloads\n\nOUTPUT=\"/home/node/downloads/$name\"\n\nwget -q \"$URL\" -O \"$OUTPUT\"\n\n[ ! -s \"$OUTPUT\" ] && exit 0\n\necho \"$OUTPUT\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        864,
+        -720
+      ],
+      "id": "04ca2bd9-5b21-4229-b95b-a94dfdea0e38",
+      "name": "Tải Video Đã Xử Lý",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.stdout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -784
+      ],
+      "id": "cd1b673c-6848-46c2-b7d6-5014f3e02d9f",
+      "name": "Đọc Video Upload",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const normalizeBoolean = (value) => {\n  if (value === undefined || value === null) return false;\n  const normalized = String(value).trim().toLowerCase();\n  return normalized === 'true' || normalized === '1' || normalized === 'yes';\n};\n\nconst fixMimeType = (mimeType) => {\n  if (mimeType === 'application/mp4' || mimeType === 'application/x-mp4') {\n    return 'video/mp4';\n  }\n  return mimeType;\n};\n\nconst videoInfo = $('Lấy Thông Tin Video').first().json;\nconst currentItem = $input.item;\n\nif (!currentItem.binary || !currentItem.binary.data) {\n  throw new Error('No video binary found from \"Read Processed Video For YouTube\"');\n}\n\nconst binaryData = currentItem.binary.data;\nif (!binaryData.data && !binaryData.mimeType) {\n  throw new Error('Invalid binary data structure');\n}\n\nreturn {\n  json: {\n    ...videoInfo,\n    id: videoInfo.id || currentItem.json.id,\n    enable_youtube_upload_normalized: normalizeBoolean(videoInfo.enable_youtube_upload),\n    enable_youtube_upload_should_upload: normalizeBoolean(videoInfo.enable_youtube_upload)\n  },\n  binary: {\n    data: {\n      ...binaryData,\n      mimeType: fixMimeType(binaryData.mimeType)\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        -784
+      ],
+      "id": "c634e329-3a94-4cd2-a99a-23200950b804",
+      "name": "Gộp Data Upload YT",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e7c1b9d2-4f3a-4d9b-9c1e-7a6b5c4d3e2f",
+              "leftValue": "={{ $json.enable_youtube_upload_should_upload || false }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        -784
+      ],
+      "id": "c29bef0a-7833-4fd0-b0eb-328e6472a858",
+      "name": "Check Điều Kiện Upload",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ (() => { const getParsedTitle = () => { const parseMeta = $('Parse Metadata'); if (!parseMeta || !parseMeta.isExecuted) return null; const metaItem = parseMeta.first(); if (!metaItem || !metaItem.json || !metaItem.json.youtube_title) return null; const title = String(metaItem.json.youtube_title).trim(); return title ? title : null; }; const parsedTitle = getParsedTitle(); if (parsedTitle) return parsedTitle; const sheetData = $('Lấy Thông Tin Video').first().json; if (sheetData.youtube_title) return sheetData.youtube_title; if (sheetData.video_title) return sheetData.video_title; return null; })() }}",
+        "regionCode": "VN",
+        "categoryId": "={{ (() => { const CATEGORY_MAP = { 'other': 24, 'hoạt hình': 1, 'âm nhạc': 10, 'tâm sự': 24, 'music': 10, 'animation': 1, 'entertainment': 24 }; const cat = $('Lấy Thông Tin Video').first().json.youtube_category; if (!cat) return null; const catLower = String(cat).toLowerCase().trim(); return CATEGORY_MAP[catLower] || null; })() }}",
+        "options": {
+          "description": "={{ (() => { const getParsedDescription = () => { const parseMeta = $('Parse Metadata'); if (!parseMeta || !parseMeta.isExecuted) return null; const metaItem = parseMeta.first(); if (!metaItem || !metaItem.json || !metaItem.json.youtube_description) return null; const desc = String(metaItem.json.youtube_description).trim(); return desc ? desc : null; }; const parsedDesc = getParsedDescription(); if (parsedDesc) return parsedDesc; return $('Lấy Thông Tin Video').first().json.youtube_description || null; })() }}",
+          "privacyStatus": "={{ $('Lấy Thông Tin Video').first().json.youtube_privacy }}",
+          "selfDeclaredMadeForKids": false
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        -592
+      ],
+      "id": "20a036a6-718a-4788-904b-a54deb3a9032",
+      "name": "Upload YouTube",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "Ef2jyb1R1QxY5Wru",
+          "name": "YouTube account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "for (const item of $input.all()) {\n  delete item.binary;\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -592
+      ],
+      "id": "f2b1715b-88ff-4722-9119-b1bb9ac341be",
+      "name": "Xóa Binary Upload",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "value": "1ZLe3MXQnW_IgaQ2IOf_kd3c4BMy5upHrTFVPlguXnsw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Templates",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Lấy Thông Tin Video').item.json.id || $('Lấy Thông Tin Video').first().json.id }}",
+            "publish_status": "published",
+            "youtube_link": "={{ (() => { const extractVideoId = (uploadItem) => { if (!uploadItem || !uploadItem.json) return null; const json = uploadItem.json; if (Array.isArray(json) && json.length > 0) return json[0].uploadId; if (typeof json === 'object' && json !== null) return json.uploadId; return null; }; const uploadResult = $('Upload YouTube'); if (!uploadResult || !uploadResult.isExecuted) return ''; const uploadItem = uploadResult.first(); const videoId = extractVideoId(uploadItem); if (!videoId) return ''; const trimmedId = String(videoId).trim(); return trimmedId ? `https://www.youtube.com/watch?v=${trimmedId}` : ''; })() }}",
+            "youtube_upload_time": "={{ (() => { const now = new Date(); const dateStr = now.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }); const timeStr = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', second: '2-digit' }); return `${dateStr} ${timeStr}`; })() }}",
+            "processed_video_drive_link": "={{ (() => { const getDriveLink = $('Lấy Link Drive'); if (getDriveLink && getDriveLink.isExecuted) { const result = getDriveLink.first(); if (result && result.json && result.json.stdout) { return String(result.json.stdout).trim(); } } return $('Lấy Thông Tin Video').first().json.processed_video_drive_link; })() }}",
+            "youtube_title": "={{ (() => { const getParsedTitle = () => { const parseMeta = $('Parse Metadata'); if (!parseMeta || !parseMeta.isExecuted) return null; const metaItem = parseMeta.first(); if (!metaItem || !metaItem.json || !metaItem.json.youtube_title) return null; const title = String(metaItem.json.youtube_title).trim(); return title ? title : null; }; const parsedTitle = getParsedTitle(); if (parsedTitle) return parsedTitle; const sheetData = $('Lấy Thông Tin Video').first().json; if (sheetData.youtube_title) return sheetData.youtube_title; if (sheetData.video_title) return sheetData.video_title; return null; })() }}",
+            "youtube_description": "={{ (() => { const getParsedDescription = () => { const parseMeta = $('Parse Metadata'); if (!parseMeta || !parseMeta.isExecuted) return null; const metaItem = parseMeta.first(); if (!metaItem || !metaItem.json || !metaItem.json.youtube_description) return null; const desc = String(metaItem.json.youtube_description).trim(); return desc ? desc : null; }; const parsedDesc = getParsedDescription(); if (parsedDesc) return parsedDesc; return $('Lấy Thông Tin Video').first().json.youtube_description || null; })() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "publish_status",
+              "displayName": "publish_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "youtube_link",
+              "displayName": "youtube_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "youtube_upload_time",
+              "displayName": "youtube_upload_time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processed_video_drive_link",
+              "displayName": "processed_video_drive_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "youtube_title",
+              "displayName": "youtube_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "youtube_description",
+              "displayName": "youtube_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "headerRow": 2
+        }
+      },
+      "id": "ea327062-6267-43e4-9521-db3bd5a6fd30",
+      "name": "Cập Nhật Trạng Thái Cuối",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1712,
+        -592
+      ],
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "IdFF9k2O5WBsk28B",
+          "name": "Google Sheets account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ready-to-publish-check",
+              "leftValue": "={{ $json.publish_status && $json.publish_status.toString().trim().toLowerCase() }}",
+              "rightValue": "=pending",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "enable-youtube-upload-check",
+              "leftValue": "={{ $json.enable_youtube_upload }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "drive-link-check",
+              "leftValue": "={{ $json.processed_video_drive_link }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "youtube-privacy-check",
+              "leftValue": "={{ $json.youtube_privacy }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        -352
+      ],
+      "id": "16987b51-702c-4d15-9173-60645063bc00",
+      "name": "Publish video",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8000/api/v1/videos/pipeline",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_input",
+              "value": "={{ $json.video_url }}"
+            },
+            {
+              "name": "output_path",
+              "value": "/home/node/downloads/{{ $json.id }}_processed.mp4"
+            },
+            {
+              "name": "new_logo_url",
+              "value": "={{ $json.new_logo_url }}"
+            },
+            {
+              "name": "intro_url",
+              "value": "={{ $json.intro_background_url }}"
+            },
+            {
+              "name": "background_music",
+              "value": "={{ $json.background_music_url }}"
+            },
+            {
+              "name": "bg_music_volume",
+              "value": "={{ $json.bg_music_volume }}"
+            },
+            {
+              "name": "filter_nsfw",
+              "value": "={{ $json.filter_nsfw == 'TRUE' }}"
+            },
+            {
+              "name": "remove_text",
+              "value": "={{ $json.remove_text == 'TRUE' }}"
+            },
+            {
+              "name": "speed",
+              "value": "={{ $json.speed }}"
+            },
+            {
+              "name": "flip",
+              "value": "={{ $json.flip == 'TRUE' }}"
+            },
+            {
+              "name": "zoom",
+              "value": "={{ $json.zoom }}"
+            },
+            {
+              "name": "brightness",
+              "value": "={{ $json.brightness }}"
+            },
+            {
+              "name": "saturation",
+              "value": "={{ $json.saturation }}"
+            },
+            {
+              "name": "hue",
+              "value": "={{ $json.hue }}"
+            },
+            {
+              "name": "ocr_languages",
+              "value": "={{ $json.ocr_languages }}"
+            },
+            {
+              "name": "ocr_expand",
+              "value": "={{ $json.ocr_expand }}"
+            },
+            {
+              "name": "ocr_max_frames",
+              "value": "={{ $json.ocr_max_frames }}"
+            },
+            {
+              "name": "logo_width",
+              "value": "={{ $json.logo_width }}"
+            },
+            {
+              "name": "logo_height",
+              "value": "={{ $json.logo_height }}"
+            },
+            {
+              "name": "logo_padding",
+              "value": "={{ $json.logo_padding }}"
+            },
+            {
+              "name": "logo_position",
+              "value": "={{ $json.logo_position }}"
+            },
+            {
+              "name": "delogo_expand",
+              "value": "={{ $json.delogo_expand }}"
+            },
+            {
+              "name": "split_mode",
+              "value": "={{ $json.split_mode }}"
+            },
+            {
+              "name": "split_start",
+              "value": "={{ $json.split_start }}"
+            },
+            {
+              "name": "split_duration",
+              "value": "={{ $json.split_duration }}"
+            },
+            {
+              "name": "split_min_duration",
+              "value": "={{ $json.split_min_duration }}"
+            },
+            {
+              "name": "split_limit",
+              "value": "={{ $json.split_limit }}"
+            },
+            {
+              "name": "unique_mode",
+              "value": "={{ $json.unique_mode == 'TRUE' }}"
+            },
+            {
+              "name": "watermark_text",
+              "value": "={{ $json.watermark_text }}"
+            },
+            {
+              "name": "watermark_opacity",
+              "value": "={{ $json.watermark_opacity }}"
+            },
+            {
+              "name": "watermark_size",
+              "value": "={{ $json.watermark_size }}"
+            },
+            {
+              "name": "watermark_position",
+              "value": "={{ $json.watermark_position }}"
+            },
+            {
+              "name": "gemini_api_key",
+              "value": "={{ $json.gemini_api_key }}"
+            },
+            {
+              "name": "detect_json",
+              "value": "={{ JSON.stringify($('Phát Hiện Logo (API)').first().json) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f009762a-ac61-4ec6-9cef-d035a0481f07",
+      "name": "Gửi Job Xử Lý (API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3088,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "800449b5-cd2e-4786-bac4-3bdacc9250c4",
+      "name": "Chờ Xử Lý",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        288
+      ],
+      "webhookId": "7a513790-5ad5-420c-8a90-c5b4d06ee557"
+    },
+    {
+      "parameters": {
+        "url": "=http://172.17.0.1:8000/api/v1/jobs/{{ $json.data.job_id }}",
+        "options": {}
+      },
+      "id": "57650ed9-1b9b-47d0-a32f-2769a70376ab",
+      "name": "Kiểm Tra Trạng Thái",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1248,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data.status }}",
+              "value2": "completed"
+            }
+          ]
+        }
+      },
+      "id": "014646a8-a920-47f9-9224-58de93f32386",
+      "name": "Đã Xử Lý Xong?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        384,
+        -352
+      ],
+      "id": "b6065c43-8b9d-4e3d-b5ce-8c56802d08e3",
+      "name": "Vòng Lặp Video"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const STATUS = {\n  SUCCESS: 'success',\n  ERROR: 'error',\n  NONE: 'none'\n};\n\nconst getNodeResult = (nodeName) => {\n  const node = $(nodeName);\n  if (!node || !node.isExecuted) return null;\n  return node.first();\n};\n\nconst extractUploadId = (uploadItem) => {\n  if (!uploadItem || uploadItem.error || !uploadItem.json) return null;\n  const json = uploadItem.json;\n  if (Array.isArray(json) && json.length > 0) return json[0].uploadId;\n  if (typeof json === 'object' && json !== null) return json.uploadId;\n  return null;\n};\n\nconst extractYouTubeLink = () => {\n  const uploadItem = getNodeResult('Upload To YouTube');\n  if (!uploadItem) return '';\n  const videoId = extractUploadId(uploadItem);\n  if (!videoId) return '';\n  const trimmedId = String(videoId).trim();\n  return trimmedId ? `https://www.youtube.com/watch?v=${trimmedId}` : '';\n};\n\nconst checkNodeError = (nodeName) => {\n  const item = getNodeResult(nodeName);\n  if (!item) return null;\n  if (item.error) return item.error.message;\n  \n  if (item.json && item.json.stderr) {\n    const stderr = String(item.json.stderr);\n    \n    if (stderr.includes('ffmpeg version')) {\n      const lines = stderr.split('\\n');\n      const errorLines = lines.filter(line => \n        line.toLowerCase().includes('error') || \n        line.toLowerCase().includes('failed') ||\n        line.toLowerCase().includes('cannot') ||\n        line.toLowerCase().includes('invalid')\n      );\n      if (errorLines.length > 0) {\n        return errorLines.join('\\n').substring(0, 300);\n      }\n      if (item.json.exitCode && item.json.exitCode !== 0) {\n        return 'FFmpeg execution failed';\n      }\n      return null;\n    }\n    \n    if (stderr.includes('--') && (stderr.includes('wget') || stderr.includes('HTTP'))) {\n      const lines = stderr.split('\\n');\n      const errorLines = lines.filter(line => \n        line.toUpperCase().includes('ERROR') || \n        line.toLowerCase().includes('failed') ||\n        line.includes('404') ||\n        line.includes('403') ||\n        line.includes('500') ||\n        line.toLowerCase().includes('not found')\n      );\n      if (errorLines.length > 0) {\n        return errorLines.join('\\n').substring(0, 300);\n      }\n      if (item.json.exitCode && item.json.exitCode !== 0) {\n        return 'Download failed';\n      }\n      return null;\n    }\n    \n    return stderr.substring(0, 300);\n  }\n  \n  if (item.json && item.json.exitCode && item.json.exitCode !== 0) {\n    return 'Node execution failed';\n  }\n  \n  return null;\n};\n\nconst getDriveLinkFromNode = () => {\n  const driveLinkItem = getNodeResult('Get Drive Link');\n  if (!driveLinkItem || driveLinkItem.error || !driveLinkItem.json || !driveLinkItem.json.stdout) return null;\n  return String(driveLinkItem.json.stdout).trim();\n};\n\nconst getTimestamp = () => {\n  return new Date().toLocaleString('vi-VN', {\n    timeZone: 'Asia/Ho_Chi_Minh',\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n    hour: '2-digit',\n    minute: '2-digit',\n    second: '2-digit'\n  });\n};\n\nconst getCurrentVideoInfo = () => {\n  const currentItem = $input.item;\n  \n  if (currentItem && currentItem.json && currentItem.json.id) {\n    return currentItem.json;\n  }\n  \n  const getVideoInfoAfterUpload = $('Lấy Info Sau Upload');\n  if (getVideoInfoAfterUpload && getVideoInfoAfterUpload.isExecuted) {\n    const item = getVideoInfoAfterUpload.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const getVideoInfoForCheck = $('Lấy Info Check YT');\n  if (getVideoInfoForCheck && getVideoInfoForCheck.isExecuted) {\n    const item = getVideoInfoForCheck.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const mergeData = $('Gộp Data Upload YT');\n  if (mergeData && mergeData.isExecuted) {\n    const item = mergeData.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const getVideoInfo = $('Lấy Thông Tin Video');\n  if (getVideoInfo && getVideoInfo.isExecuted) {\n    const allItems = getVideoInfo.all();\n    if (allItems && allItems.length > 0) {\n      const currentId = currentItem?.json?.id;\n      if (currentId) {\n        const matchedItem = allItems.find(item => item.json && item.json.id === currentId);\n        if (matchedItem) return matchedItem.json;\n      }\n      const loopItems = $('Vòng Lặp Video');\n      if (loopItems && loopItems.isExecuted) {\n        const loopItem = loopItems.first();\n        if (loopItem && loopItem.json && loopItem.json.id) {\n          const matchedItem = allItems.find(item => item.json && item.json.id === loopItem.json.id);\n          if (matchedItem) return matchedItem.json;\n        }\n      }\n      return allItems[0].json;\n    }\n  }\n  \n  return null;\n};\n\nconst videoInfo = getCurrentVideoInfo() || $('Lấy Thông Tin Video').first().json;\nconst youtubeLink = extractYouTubeLink();\nconst driveLink = getDriveLinkFromNode() || videoInfo.processed_video_drive_link;\n\nconst checkAlreadyProcessed = () => {\n  const setResultStatusNode = $('Tổng Hợp Kết Quả');\n  if (!setResultStatusNode || !setResultStatusNode.isExecuted) return false;\n  const allResults = setResultStatusNode.all();\n  if (!allResults || allResults.length === 0) return false;\n  const currentId = videoInfo.id;\n  if (!currentId) return false;\n  const processedIds = allResults\n    .map(item => item.json && item.json.id)\n    .filter(id => id && id === currentId);\n  return processedIds.length > 0;\n};\n\nif (checkAlreadyProcessed()) {\n  return {\n    json: {\n      status: STATUS.NONE,\n      errorMessage: '',\n      id: videoInfo.id,\n      videoTitle: videoInfo.video_title || videoInfo.youtube_title,\n      videoUrl: videoInfo.video_url,\n      driveLink,\n      youtubeLink,\n      publishStatus: videoInfo.publish_status ? String(videoInfo.publish_status).toLowerCase() : '',\n      timestamp: getTimestamp(),\n      skip: true\n    }\n  };\n}\n\nconst errorNodes = ['Process Video', 'Download Video', 'Upload to Drive', 'Get Drive Link', 'Insert Background Intro', 'Download Processed Video From Drive', 'Extract Frame', 'Read Processed Video For YouTube', 'Merge Data For YouTube Check'];\nconst uploadError = checkNodeError('Upload To YouTube');\nconst execErrors = errorNodes.map(node => checkNodeError(node)).filter(e => e);\nconst firstError = uploadError || execErrors[0];\n\nconst status = firstError ? STATUS.ERROR : (youtubeLink ? STATUS.SUCCESS : STATUS.NONE);\nconst errorMessage = firstError ? String(firstError).substring(0, 300) : '';\n\nreturn {\n  json: {\n    status,\n    errorMessage,\n    id: videoInfo.id,\n    videoTitle: videoInfo.video_title || videoInfo.youtube_title,\n    videoUrl: videoInfo.video_url,\n    driveLink,\n    youtubeLink,\n    publishStatus: videoInfo.publish_status ? String(videoInfo.publish_status).toLowerCase() : '',\n    timestamp: getTimestamp()\n  }\n};"
+      },
+      "id": "c5ef40ff-6385-44bc-8069-955cf06ee53f",
+      "name": "Tổng Hợp Kết Quả",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        -592
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09QG88TFJM",
+          "mode": "id"
+        },
+        "text": "={{ (() => { const STATUS = { SUCCESS: 'success', ERROR: 'error', NONE: 'none' }; const MESSAGE = { SUCCESS_PREFIX: '✅ Video xử lý thành công', ERROR_PREFIX: '🔴 Lỗi xử lý video' }; const status = $json.status; if (status === STATUS.NONE || $json.skip === true) return ''; const id = $json.id; const videoTitle = $json.videoTitle; const videoUrl = $json.videoUrl; const driveLink = $json.driveLink; const youtubeLink = $json.youtubeLink; const errorMessage = $json.errorMessage; const timestamp = $json.timestamp; if (status === STATUS.SUCCESS) { return `${MESSAGE.SUCCESS_PREFIX}\\nID: ${id}\\nTiêu đề: ${videoTitle}\\nYouTube: ${youtubeLink}\\nDrive: ${driveLink}\\nThời gian: ${timestamp}`; } else if (status === STATUS.ERROR) { return `${MESSAGE.ERROR_PREFIX}\\nID: ${id}\\nTiêu đề: ${videoTitle}\\nLỗi: ${errorMessage}\\nGốc: ${videoUrl}\\n${driveLink ? 'Drive: ' + driveLink : ''}${youtubeLink ? '\\nYouTube: ' + youtubeLink : ''}\\nThời gian: ${timestamp}`; } return ''; })() }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        2720,
+        -1008
+      ],
+      "id": "40319831-1491-4d76-9dc1-5ef9b0d9be51",
+      "name": "Gửi Slack",
+      "executeOnce": true,
+      "webhookId": "ee2d48b4-7741-4eda-be7e-f299880b5106",
+      "credentials": {
+        "slackApi": {
+          "id": "r5gqdIaSja4mpw9V",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=THUMB_URL=\"{{ $json.thumbnail_url }}\"\nVIDEO_ID=\"{{ $json.id }}\"\nOUTPUT=\"/home/node/downloads/thumb_${VIDEO_ID}.jpg\"\n\n[ -z \"$THUMB_URL\" ] && exit 0\n\n# Extract Google Drive file ID if it's a drive link\nFILE_ID=$(echo \"$THUMB_URL\" | sed -n 's/.*\\/d\\/\\([^\\/]*\\)\\/.*/\\1/p')\n[ -z \"$FILE_ID\" ] && FILE_ID=$(echo \"$THUMB_URL\" | sed -n 's/.*[?&]id=\\([^&]*\\).*/\\1/p')\n\nif [ -n \"$FILE_ID\" ]; then\n  URL=\"https://drive.google.com/uc?export=download&id=${FILE_ID}\"\nelse\n  URL=\"$THUMB_URL\"\nfi\n\nwget -q \"$URL\" -O \"$OUTPUT\" 2>&1\n\n[ -s \"$OUTPUT\" ] && echo \"$OUTPUT\" || echo \"\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        -784
+      ],
+      "id": "90688a5f-f984-413d-8c9e-2f7c5ebbb0db",
+      "name": "Tải Thumbnail",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.stdout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        -784
+      ],
+      "id": "e7f1db8a-a6ab-414c-85d3-5fb7ed2ef585",
+      "name": "Đọc Thumbnail",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const videoInfo = $('Gộp Data Upload YT').first().json;\nconst videoData = $('Gộp Data Upload YT').first();\nconst currentItem = $input.item;\n\nconst result = {\n  json: { ...videoInfo },\n  binary: {\n    data: videoData.binary.data\n  }\n};\n\nif (currentItem.binary && currentItem.binary.data && currentItem.binary.data.mimeType) {\n  const thumbBinary = currentItem.binary.data;\n  if (thumbBinary.mimeType.startsWith('image/')) {\n    result.binary.thumbnail = thumbBinary;\n    result.json.has_thumbnail = true;\n  }\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -592
+      ],
+      "id": "cb0dc65b-d415-4cc9-b221-79214e13e6da",
+      "name": "Gộp Binary Thumbnail",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "thumbnail-url-check",
+              "leftValue": "={{ $json.thumbnail_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1840,
+        -784
+      ],
+      "id": "99e3e10d-088a-4117-9553-f8fa7bf6b87c",
+      "name": "Check Thumbnail",
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Publish video": {
+      "main": [
+        [
+          {
+            "node": "Tải Video Đã Xử Lý",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trích Xuất URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Lịch Trình": {
+      "main": [
+        [
+          {
+            "node": "Lấy Thông Tin Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy Thông Tin Video": {
+      "main": [
+        [
+          {
+            "node": "Vòng Lặp Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tải Video Đã Xử Lý": {
+      "main": [
+        [
+          {
+            "node": "Đọc Video Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trích Xuất URL": {
+      "main": [
+        [
+          {
+            "node": "Lấy Metadata YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy Metadata YouTube": {
+      "main": [
+        [
+          {
+            "node": "Gộp Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gộp Metadata": {
+      "main": [
+        [
+          {
+            "node": "Dọn File Cũ",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dọn File Cũ": {
+      "main": [
+        [
+          {
+            "node": "Tải Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tải Video": {
+      "main": [
+        [
+          {
+            "node": "Đọc File Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc File Video": {
+      "main": [
+        [
+          {
+            "node": "Xóa Binary Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Xóa Binary Video": {
+      "main": [
+        [
+          {
+            "node": "Trích Xuất Frame",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trích Xuất Frame": {
+      "main": [
+        [
+          {
+            "node": "Phát Hiện Logo (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phát Hiện Logo (API)": {
+      "main": [
+        [
+          {
+            "node": "Gửi Job Xử Lý (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gửi Job Xử Lý (API)": {
+      "main": [
+        [
+          {
+            "node": "Chờ Xử Lý",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chờ Xử Lý": {
+      "main": [
+        [
+          {
+            "node": "Kiểm Tra Trạng Thái",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kiểm Tra Trạng Thái": {
+      "main": [
+        [
+          {
+            "node": "Đã Xử Lý Xong?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đã Xử Lý Xong?": {
+      "main": [
+        [
+          {
+            "node": "Gửi Job Upload (API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chờ Xử Lý",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gửi Job Upload (API)": {
+      "main": [
+        [
+          {
+            "node": "Chờ Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chờ Upload": {
+      "main": [
+        [
+          {
+            "node": "Kiểm Tra Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kiểm Tra Upload": {
+      "main": [
+        [
+          {
+            "node": "Đã Upload Xong?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đã Upload Xong?": {
+      "main": [
+        [
+          {
+            "node": "Lấy Link Drive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chờ Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy Link Drive": {
+      "main": [
+        [
+          {
+            "node": "Cập Nhật Link Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cập Nhật Link Drive": {
+      "main": [
+        [
+          {
+            "node": "Lấy Info Check YT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy Info Check YT": {
+      "main": [
+        [
+          {
+            "node": "Check Upload YT (Sau Drive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Upload YT (Sau Drive)": {
+      "main": [
+        [
+          {
+            "node": "Tải Video Đã Xử Lý",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Đọc Video Upload": {
+      "main": [
+        [
+          {
+            "node": "Gộp Data Upload YT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gộp Data Upload YT": {
+      "main": [
+        [
+          {
+            "node": "Check Điều Kiện Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Điều Kiện Upload": {
+      "main": [
+        [
+          {
+            "node": "Check Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Tải Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Đọc Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Gộp Binary Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gộp Binary Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Upload YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload YouTube": {
+      "main": [
+        [
+          {
+            "node": "Xóa Binary Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Xóa Binary Upload": {
+      "main": [
+        [
+          {
+            "node": "Cập Nhật Trạng Thái Cuối",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cập Nhật Trạng Thái Cuối": {
+      "main": [
+        [
+          {
+            "node": "Lấy Info Sau Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy Info Sau Upload": {
+      "main": [
+        [
+          {
+            "node": "Tổng Hợp Kết Quả",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vòng Lặp Video": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Publish video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tổng Hợp Kết Quả": {
+      "main": [
+        [
+          {
+            "node": "Gửi Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gửi Slack": {
+      "main": [
+        [
+          {
+            "node": "Vòng Lặp Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Tải Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5f875ff2-0306-4a8c-95fd-0f24f1656b80",
+  "meta": {
+    "instanceId": "85d7322ab387263001b31b703ad4747f32bd4ef2ff67525ffd22eeafb96c1d17"
+  },
+  "id": "qV46dY3qT0KsSziC",
+  "tags": []
+}

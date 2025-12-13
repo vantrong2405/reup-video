@@ -182,7 +182,7 @@
     },
     {
       "parameters": {
-        "command": "=export PYTHONPATH=$PYTHONPATH:/data/src\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\n# Visual Effects (Anti-AI)\nFLIP=\"{{ $('Get Video Information').first().json.flip ? '--flip' : '' }}\"\nZOOM=\"{{ $('Get Video Information').first().json.zoom || 1.1 }}\"\nSPEED=\"{{ $('Get Video Information').first().json.speed || 1.02 }}\"\nBRIGHTNESS=\"{{ $('Get Video Information').first().json.brightness || 0.05 }}\"\nSATURATION=\"{{ $('Get Video Information').first().json.saturation || 1.1 }}\"\nHUE=\"{{ $('Get Video Information').first().json.hue || 0.0 }}\"\n\nBG_MUSIC=\"{{ $('Get Video Information').first().json.background_music_url || '' }}\"\nREMOVE_TEXT=\"{{ $('Get Video Information').first().json.remove_text ? '--remove_text' : '' }}\"\nFILTER_NSFW=\"{{ $('Get Video Information').first().json.filter_nsfw ? '--filter_nsfw' : '' }}\"\nOCR_LANGUAGES=\"{{ $('Get Video Information').first().json.ocr_languages || 'en' }}\"\nOCR_EXPAND=\"{{ $('Get Video Information').first().json.ocr_expand || 10 }}\"\nOCR_MAX_FRAMES=\"{{ $('Get Video Information').first().json.ocr_max_frames || 3 }}\"\nGEMINI_KEY=\"{{ $('Get Video Information').first().json.gemini_api_key || '' }}\"\n\n# Logo Configs\nLOGO_WIDTH=\"{{ $('Get Video Information').first().json.logo_width || 220 }}\"\nLOGO_HEIGHT=\"{{ $('Get Video Information').first().json.logo_height || '' }}\"\nLOGO_PADDING=\"{{ $('Get Video Information').first().json.logo_padding || 10 }}\"\nLOGO_POSITION=\"{{ $('Get Video Information').first().json.logo_position || 'top-right' }}\"\n\n# Split Configs\nSPLIT_MODE=\"{{ $('Get Video Information').first().json.split_mode || 'none' }}\"\nSPLIT_START=\"{{ $('Get Video Information').first().json.split_start || '00:00:00' }}\"\nSPLIT_DURATION=\"{{ $('Get Video Information').first().json.split_duration || 10 }}\"\nSPLIT_MIN_DURATION=\"{{ $('Get Video Information').first().json.split_min_duration || 5 }}\"\nSPLIT_LIMIT=\"{{ $('Get Video Information').first().json.split_limit || 5 }}\"\n\n# Advanced Configs\nFFMPEG_PRESET=\"{{ $('Get Video Information').first().json.ffmpeg_preset || 'veryfast' }}\"\nDELOGO_EXPAND=\"{{ $('Get Video Information').first().json.delogo_expand || 0 }}\"\nBG_MUSIC_VOLUME=\"{{ $('Get Video Information').first().json.bg_music_volume || 0.3 }}\"\n\nLOGO_HEIGHT_ARG=\"\"\nif [ -n \"$LOGO_HEIGHT\" ]; then\n  LOGO_HEIGHT_ARG=\"--logo_height $LOGO_HEIGHT\"\nfi\n\nGEMINI_ARG=\"\"\nif [ -n \"$GEMINI_KEY\" ]; then\n  GEMINI_ARG=\"--gemini_key $GEMINI_KEY\"\nfi\n\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\n# Download Music if provided\nMUSIC_ARG=\"\"\nif [ -n \"$BG_MUSIC\" ]; then\n  MUSIC_FILE=\"/home/node/downloads/music_${VIDEO_ID}.mp3\"\n  wget -O \"$MUSIC_FILE\" \"$BG_MUSIC\"\n  MUSIC_ARG=\"--background_music $MUSIC_FILE\"\nfi\n\npython3 /data/src/controller/video_controller.py pipeline \\\n  \"$VIDEO_INPUT\" \\\n  \"$LOGO_INPUT\" \\\n  \"$DETECT_OUTPUT\" \\\n  \"$OUTPUT_FILE\" \\\n  --new_logo_url \"$NEW_LOGO_URL\" \\\n  --intro_url \"$INTRO_VIDEO_URL\" \\\n  --work_dir \"$OUTPUT_DIR\" \\\n  $FLIP \\\n  --zoom \"$ZOOM\" \\\n  --speed \"$SPEED\" \\\n  --brightness \"$BRIGHTNESS\" \\\n  --saturation \"$SATURATION\" \\\n  --hue \"$HUE\" \\\n  $REMOVE_TEXT \\\n  $FILTER_NSFW \\\n  --ocr_languages \"$OCR_LANGUAGES\" \\\n  --ocr_expand \"$OCR_EXPAND\" \\\n  --ocr_max_frames \"$OCR_MAX_FRAMES\" \\\n  $GEMINI_ARG \\\n  --logo_width \"$LOGO_WIDTH\" \\\n  $LOGO_HEIGHT_ARG \\\n  --logo_padding \"$LOGO_PADDING\" \\\n  --logo_position \"$LOGO_POSITION\" \\\n  --ffmpeg_preset \"$FFMPEG_PRESET\" \\\n  --delogo_expand \"$DELOGO_EXPAND\" \\\n  --bg_music_volume \"$BG_MUSIC_VOLUME\" \\\n  --split-mode \"$SPLIT_MODE\" \\\n  --split-start \"$SPLIT_START\" \\\n  --split-duration \"$SPLIT_DURATION\" \\\n  --split-min-duration \"$SPLIT_MIN_DURATION\" \\\n  --split-limit \"$SPLIT_LIMIT\" \\\n  $MUSIC_ARG 2>&1"
+        "command": "=export PYTHONPATH=$PYTHONPATH:/data/src\n\nVIDEO_ID=\"{{ $('Merge YouTube Metadata').first().json.id }}\"\nFILE_NAME=\"{{ $('Read Video File').first().binary.data.fileName }}\"\nDETECT_OUTPUT=\"{{ $('Detect Logo (YOLO)').item.json.stdout }}\"\nNEW_LOGO_URL=\"{{ $('Get Video Information').first().json.new_logo_url || '' }}\"\nINTRO_VIDEO_URL=\"{{ $('Get Video Information').first().json.intro_background_url || '' }}\"\n\n# Visual Effects (Anti-AI)\nFLIP=\"{{ $('Get Video Information').first().json.flip ? '--flip' : '' }}\"\nZOOM=\"{{ $('Get Video Information').first().json.zoom || 1.1 }}\"\nSPEED=\"{{ $('Get Video Information').first().json.speed || 1.02 }}\"\nBRIGHTNESS=\"{{ $('Get Video Information').first().json.brightness || 0.05 }}\"\nSATURATION=\"{{ $('Get Video Information').first().json.saturation || 1.1 }}\"\nHUE=\"{{ $('Get Video Information').first().json.hue || 0.0 }}\"\n\nBG_MUSIC=\"{{ $('Get Video Information').first().json.background_music_url || '' }}\"\nREMOVE_TEXT=\"{{ $('Get Video Information').first().json.remove_text ? '--remove_text' : '' }}\"\nFILTER_NSFW=\"{{ $('Get Video Information').first().json.filter_nsfw ? '--filter_nsfw' : '' }}\"\nOCR_LANGUAGES=\"{{ $('Get Video Information').first().json.ocr_languages || 'en' }}\"\nOCR_EXPAND=\"{{ $('Get Video Information').first().json.ocr_expand || 10 }}\"\nOCR_MAX_FRAMES=\"{{ $('Get Video Information').first().json.ocr_max_frames || 3 }}\"\nGEMINI_KEY=\"{{ $('Get Video Information').first().json.gemini_api_key || '' }}\"\n\n# Logo Configs\nLOGO_WIDTH=\"{{ $('Get Video Information').first().json.logo_width || 220 }}\"\nLOGO_HEIGHT=\"{{ $('Get Video Information').first().json.logo_height || '' }}\"\nLOGO_PADDING=\"{{ $('Get Video Information').first().json.logo_padding || 10 }}\"\nLOGO_POSITION=\"{{ $('Get Video Information').first().json.logo_position || 'top-right' }}\"\n\n# Split Configs\nSPLIT_MODE=\"{{ $('Get Video Information').first().json.split_mode || 'none' }}\"\nSPLIT_START=\"{{ $('Get Video Information').first().json.split_start || '00:00:00' }}\"\nSPLIT_DURATION=\"{{ $('Get Video Information').first().json.split_duration || 10 }}\"\nSPLIT_MIN_DURATION=\"{{ $('Get Video Information').first().json.split_min_duration || 5 }}\"\nSPLIT_LIMIT=\"{{ $('Get Video Information').first().json.split_limit || 5 }}\"\n\n# Signature/Watermark Configs (Anti-Copyright)\nUNIQUE_MODE=\"{{ $('Get Video Information').first().json.unique_mode ? '--unique' : '' }}\"\nWATERMARK_TEXT=\"{{ $('Get Video Information').first().json.watermark_text || '' }}\"\nWATERMARK_OPACITY=\"{{ $('Get Video Information').first().json.watermark_opacity || 0.3 }}\"\nWATERMARK_SIZE=\"{{ $('Get Video Information').first().json.watermark_size || 24 }}\"\nWATERMARK_POSITION=\"{{ $('Get Video Information').first().json.watermark_position || 'bottom' }}\"\n\n# Advanced Configs\nFFMPEG_PRESET=\"{{ $('Get Video Information').first().json.ffmpeg_preset || 'veryfast' }}\"\nDELOGO_EXPAND=\"{{ $('Get Video Information').first().json.delogo_expand || 0 }}\"\nBG_MUSIC_VOLUME=\"{{ $('Get Video Information').first().json.bg_music_volume || 0.3 }}\"\n\nLOGO_HEIGHT_ARG=\"\"\nif [ -n \"$LOGO_HEIGHT\" ]; then\n  LOGO_HEIGHT_ARG=\"--logo_height $LOGO_HEIGHT\"\nfi\n\nGEMINI_ARG=\"\"\nif [ -n \"$GEMINI_KEY\" ]; then\n  GEMINI_ARG=\"--gemini_key $GEMINI_KEY\"\nfi\n\nWATERMARK_ARG=\"\"\nif [ -n \"$WATERMARK_TEXT\" ]; then\n  WATERMARK_ARG=\"--watermark $WATERMARK_TEXT --watermark-opacity $WATERMARK_OPACITY --watermark-size $WATERMARK_SIZE --watermark-position $WATERMARK_POSITION\"\nfi\n\nOUTPUT_FILE=\"/home/node/downloads/${VIDEO_ID}_processed.mp4\"\nVIDEO_INPUT=\"/home/node/downloads/${FILE_NAME}\"\nLOGO_INPUT=\"/home/node/downloads/logo_${VIDEO_ID}.png\"\nOUTPUT_DIR=\"/home/node/downloads\"\n\n# Download Music if provided\nMUSIC_ARG=\"\"\nif [ -n \"$BG_MUSIC\" ]; then\n  MUSIC_FILE=\"/home/node/downloads/music_${VIDEO_ID}.mp3\"\n  wget -O \"$MUSIC_FILE\" \"$BG_MUSIC\"\n  MUSIC_ARG=\"--background_music $MUSIC_FILE\"\nfi\n\npython3 /data/src/controller/video_controller.py pipeline \\\n  \"$VIDEO_INPUT\" \\\n  \"$LOGO_INPUT\" \\\n  \"$DETECT_OUTPUT\" \\\n  \"$OUTPUT_FILE\" \\\n  --new_logo_url \"$NEW_LOGO_URL\" \\\n  --intro_url \"$INTRO_VIDEO_URL\" \\\n  --work_dir \"$OUTPUT_DIR\" \\\n  $FLIP \\\n  --zoom \"$ZOOM\" \\\n  --speed \"$SPEED\" \\\n  --brightness \"$BRIGHTNESS\" \\\n  --saturation \"$SATURATION\" \\\n  --hue \"$HUE\" \\\n  $REMOVE_TEXT \\\n  $FILTER_NSFW \\\n  --ocr_languages \"$OCR_LANGUAGES\" \\\n  --ocr_expand \"$OCR_EXPAND\" \\\n  --ocr_max_frames \"$OCR_MAX_FRAMES\" \\\n  $GEMINI_ARG \\\n  --logo_width \"$LOGO_WIDTH\" \\\n  $LOGO_HEIGHT_ARG \\\n  --logo_padding \"$LOGO_PADDING\" \\\n  --logo_position \"$LOGO_POSITION\" \\\n  --ffmpeg_preset \"$FFMPEG_PRESET\" \\\n  --delogo_expand \"$DELOGO_EXPAND\" \\\n  --bg_music_volume \"$BG_MUSIC_VOLUME\" \\\n  --split-mode \"$SPLIT_MODE\" \\\n  --split-start \"$SPLIT_START\" \\\n  --split-duration \"$SPLIT_DURATION\" \\\n  --split-min-duration \"$SPLIT_MIN_DURATION\" \\\n  --split-limit \"$SPLIT_LIMIT\" \\\n  $UNIQUE_MODE \\\n  $WATERMARK_ARG \\\n  $MUSIC_ARG 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,   
@@ -528,7 +528,8 @@
         "options": {
           "description": "={{ (() => { const getParsedDescription = () => { const parseMeta = $('Parse Video Metadata'); if (!parseMeta || !parseMeta.isExecuted) return null; const metaItem = parseMeta.first(); if (!metaItem || !metaItem.json || !metaItem.json.youtube_description) return null; const desc = String(metaItem.json.youtube_description).trim(); return desc ? desc : null; }; const parsedDesc = getParsedDescription(); if (parsedDesc) return parsedDesc; return $('Get Video Information').first().json.youtube_description || null; })() }}",
           "privacyStatus": "={{ $('Get Video Information').first().json.youtube_privacy }}",
-          "selfDeclaredMadeForKids": false
+          "selfDeclaredMadeForKids": false,
+          "thumbnailBinaryProperty": "thumbnail"
         }
       },
       "type": "n8n-nodes-base.youTube",
@@ -936,6 +937,87 @@
         }
       },
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "thumbnail-url-check",
+              "leftValue": "={{ $json.thumbnail_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1296,
+        -1280
+      ],
+      "id": "thumb-check-001",
+      "name": "Check Thumbnail URL",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "=THUMB_URL=\"{{ $json.thumbnail_url }}\"\nVIDEO_ID=\"{{ $json.id }}\"\nOUTPUT=\"/home/node/downloads/thumb_${VIDEO_ID}.jpg\"\n\n[ -z \"$THUMB_URL\" ] && exit 0\n\n# Extract Google Drive file ID if it's a drive link\nFILE_ID=$(echo \"$THUMB_URL\" | sed -n 's/.*\\/d\\/\\([^\\/]*\\)\\/.*/\\1/p')\n[ -z \"$FILE_ID\" ] && FILE_ID=$(echo \"$THUMB_URL\" | sed -n 's/.*[?&]id=\\([^&]*\\).*/\\1/p')\n\nif [ -n \"$FILE_ID\" ]; then\n  URL=\"https://drive.google.com/uc?export=download&id=${FILE_ID}\"\nelse\n  URL=\"$THUMB_URL\"\nfi\n\nwget -q \"$URL\" -O \"$OUTPUT\" 2>&1\n\n[ -s \"$OUTPUT\" ] && echo \"$OUTPUT\" || echo \"\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        -1360
+      ],
+      "id": "thumb-download-001",
+      "name": "Download Thumbnail",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.stdout }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        -1360
+      ],
+      "id": "thumb-read-001",
+      "name": "Read Thumbnail File",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const videoInfo = $('Merge Data For YouTube Check').first().json;\nconst videoData = $('Merge Data For YouTube Check').first();\nconst currentItem = $input.item;\n\nconst result = {\n  json: { ...videoInfo },\n  binary: {\n    data: videoData.binary.data\n  }\n};\n\nif (currentItem.binary && currentItem.binary.data && currentItem.binary.data.mimeType) {\n  const thumbBinary = currentItem.binary.data;\n  if (thumbBinary.mimeType.startsWith('image/')) {\n    result.binary.thumbnail = thumbBinary;\n    result.json.has_thumbnail = true;\n  }\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -1360
+      ],
+      "id": "thumb-merge-001",
+      "name": "Merge Thumbnail Binary",
+      "continueOnFail": true
     }
   ],
   "pinData": {},
@@ -1205,7 +1287,7 @@
       "main": [
         [
           {
-            "node": "Upload To YouTube",
+            "node": "Check Thumbnail URL",
             "type": "main",
             "index": 0
           }
@@ -1213,6 +1295,57 @@
         [
           {
             "node": "Set Result Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Thumbnail URL": {
+      "main": [
+        [
+          {
+            "node": "Download Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload To YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Read Thumbnail File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Thumbnail File": {
+      "main": [
+        [
+          {
+            "node": "Merge Thumbnail Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Thumbnail Binary": {
+      "main": [
+        [
+          {
+            "node": "Upload To YouTube",
             "type": "main",
             "index": 0
           }
