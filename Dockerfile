@@ -1,34 +1,61 @@
-FROM node:20-bookworm
+# syntax=docker/dockerfile:1.6
 
-USER root
+ARG PYTHON_VERSION=3.11
 
-RUN apt-get update && \
-    apt-get install -y \
-        python3 python3-dev python3-pip python3-venv \
-        ffmpeg rclone yt-dlp \
-        build-essential cmake \
-        libjpeg-dev libpng-dev libwebp-dev libtiff-dev \
-        libopenblas-dev liblapack-dev \
-        git && \
-    npm install -g n8n && \
-    pip3 install --no-cache-dir --break-system-packages --upgrade pip && \
-    pip3 install --no-cache-dir --break-system-packages \
-        numpy \
-        opencv-python-headless \
-        ultralytics \
-        torch \
-        torchvision \
-        pillow \
-        requests \
-        matplotlib \
-        scipy \
-        pyyaml && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
-USER node
+ENV TZ=Asia/Ho_Chi_Minh \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    TORCH_HOME=/home/app/.cache/torch \
+    HF_HOME=/home/app/.cache/huggingface \
+    ULTRALYTICS_CACHE_DIR=/home/app/.cache/ultralytics
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONIOENCODING=utf-8
-ENV N8N_USER_FOLDER=/home/node/.n8n
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    ffmpeg \
+    rclone \
+    yt-dlp \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /home/node
+RUN pip install --upgrade pip
+
+RUN pip install --no-cache-dir \
+    torch==2.2.2+cpu \
+    torchvision==0.17.2+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn[standard] \
+    celery \
+    redis \
+    numpy \
+    scipy \
+    pillow \
+    pyyaml \
+    requests \
+    python-multipart \
+    opencv-python-headless \
+    ultralytics==8.2.0
+
+RUN useradd -m -u 1000 app && \
+    mkdir -p /home/app/.cache && \
+    chown -R app:app /home/app
+
+USER app
+WORKDIR /home/app
+
+COPY --chown=app:app ./src /home/app/src
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

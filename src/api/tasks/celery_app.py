@@ -1,31 +1,83 @@
-from celery import Celery
-import os
+# syntax=docker/dockerfile:1.6
 
-redis_host = os.getenv("REDIS_HOST", "localhost")
-redis_port = os.getenv("REDIS_PORT", "6379")
+ARG PYTHON_VERSION=3.11
 
-celery_app = Celery(
-    "video_processor",
-    broker=f"redis://{redis_host}:{redis_port}/0",
-    backend=f"redis://{redis_host}:{redis_port}/1",
-    include=[
-        "api.tasks.logo_tasks",
-        "api.tasks.video_tasks",
-        "api.tasks.text_tasks",
-        "api.tasks.nsfw_tasks",
-        "api.tasks.upload_tasks",
-    ]
-)
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
-celery_app.conf.update(
-    task_serializer="json",
-    result_serializer="json",
-    accept_content=["json"],
-    timezone="Asia/Ho_Chi_Minh",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=7200,
-    task_soft_time_limit=3600,
-    worker_concurrency=2,
-    result_expires=86400,
-)
+# =====================
+# ENV
+# =====================
+ENV TZ=Asia/Ho_Chi_Minh \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    TORCH_HOME=/home/app/.cache/torch \
+    HF_HOME=/home/app/.cache/huggingface \
+    ULTRALYTICS_CACHE_DIR=/home/app/.cache/ultralytics \
+    N8N_USER_FOLDER=/home/app/.n8n
+
+# =====================
+# System deps
+# =====================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    rclone \
+    yt-dlp \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# =====================
+# n8n (PIN VERSION)
+# =====================
+ARG N8N_VERSION=1.48.1
+RUN npm install -g n8n@${N8N_VERSION} semver
+
+# =====================
+# Python deps (PIN CORE)
+# =====================
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+      fastapi \
+      uvicorn[standard] \
+      celery \
+      redis \
+      numpy \
+      scipy \
+      pillow \
+      pyyaml \
+      requests \
+      python-multipart \
+      opencv-python-headless \
+      ultralytics==8.2.0 \
+      torch==2.2.2+cpu \
+      torchvision==0.17.2+cpu \
+      --index-url https://download.pytorch.org/whl/cpu
+
+# =====================
+# User
+# =====================
+RUN useradd -m -u 1000 app && \
+    mkdir -p /home/app/.cache /home/app/.n8n && \
+    chown -R app:app /home/app
+
+USER app
+WORKDIR /home/app
+
+# =====================
+# Source
+# =====================
+COPY --chown=app:app ./src /home/app/src
+
+EXPOSE 5678 8000
+
+CMD ["n8n"]

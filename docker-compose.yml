@@ -1,82 +1,89 @@
+version: "3.9"
+
+volumes:
+  redis_data:
+  n8n_data:
+  torch_cache:
+
+networks:
+  app_net:
+    driver: bridge
+
 services:
   redis:
     image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
+    command:
+      - redis-server
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
+    networks:
+      - app_net
 
   n8n:
-    build: .
-    image: n8n_custom:latest
-    container_name: n8n_main
-    command: ["n8n"]
+    image: n8nio/n8n:2.0.2
     ports:
       - "5678:5678"
     environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
-
-      - N8N_USER_FOLDER=/data
-      - N8N_LOG_LEVEL=error
-
-      - N8N_QUEUE_MODE=regular
-      - QUEUE_BULL_REDIS_HOST=redis
-      - QUEUE_BULL_REDIS_PORT=6379
-
+      TZ: Asia/Ho_Chi_Minh
+      N8N_HOST: 0.0.0.0
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+      N8N_ENCRYPTION_KEY: f19daf06a1296311ee255a097a667e892a2dcff4b82c6b04723f92efca2a9b4d
+      N8N_USER_MANAGEMENT_JWT_SECRET: aa664f8557773c105d7035b543dec7004be5bf3986f5b5d5df4b7c5193521be4
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./data:/data
-      - ./tmp:/tmp
-      - ./downloads:/home/node/downloads
-      - ./rclone-config:/home/node/.config/rclone
-      - ./models:/data/models
-      - ./dataset_yolo:/data/dataset_yolo
-      - ./output:/data/output
     depends_on:
       - redis
     restart: unless-stopped
+    networks:
+      - app_net
 
-  worker:
+  api:
     build: .
-    image: n8n_custom:latest
-    container_name: n8n_worker
-    command: ["n8n"]
+    image: app-runtime:dev
+    ports:
+      - "8000:8000"
     environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
-
-      - N8N_USER_FOLDER=/data
-      - N8N_LOG_LEVEL=error
-
-      - N8N_EXECUTIONS_MODE=queue
-      - QUEUE_BULL_REDIS_HOST=redis
-      - QUEUE_BULL_REDIS_PORT=6379
-
+      TZ: Asia/Ho_Chi_Minh
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
-      - n8n_data:/home/node/.n8n
+      - ./src:/home/app/src
+      - torch_cache:/home/app/.cache
       - ./data:/data
-      - ./tmp:/tmp
-      - ./downloads:/home/node/downloads
-      - ./rclone-config:/home/node/.config/rclone
       - ./models:/data/models
-      - ./dataset_yolo:/data/dataset_yolo
       - ./output:/data/output
     depends_on:
       - redis
     restart: unless-stopped
+    networks:
+      - app_net
 
-  flower:
-    image: mher/flower:latest
-    container_name: flower
+  celery_worker:
+    image: app-runtime:dev
+    command: celery -A api.celery_app worker --concurrency=1 --loglevel=info --prefetch-multiplier=1
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    ports:
-      - "5555:5555"
+      TZ: Asia/Ho_Chi_Minh
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./src:/home/app/src
+      - torch_cache:/home/app/.cache
+      - ./data:/data
+      - ./models:/data/models
+      - ./output:/data/output
     depends_on:
       - redis
     restart: unless-stopped
-
-volumes:
-  n8n_data:
+    networks:
+      - app_net

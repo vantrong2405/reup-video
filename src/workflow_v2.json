@@ -4,15 +4,15 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const extractTextFromResponse = (response) => {\n  if (Array.isArray(response) && response.length > 0) {\n    const firstItem = response[0];\n    const textPart = firstItem.content?.parts?.[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.candidates && response.candidates.length > 0) {\n    const textPart = response.candidates[0].content?.parts?.find(part => part.text);\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.content?.parts?.length > 0) {\n    const textPart = response.content.parts[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  return null;\n};\n\nconst cleanJsonText = (text) => {\n  let cleaned = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  return jsonMatch ? jsonMatch[0] : cleaned;\n};\n\nconst parseMetadata = (text) => {\n  try {\n    const meta = JSON.parse(text);\n    if (!meta || typeof meta !== 'object') {\n      return { error: 'Parsed result is not an object', raw: meta };\n    }\n    return {\n      youtube_title: meta.youtube_title ? String(meta.youtube_title).trim() : '',\n      youtube_description: meta.youtube_description ? String(meta.youtube_description).trim() : '',\n      raw: meta\n    };\n  } catch (e) {\n    return { error: `Parse error: ${e.message}`, rawText: text.substring(0, 400) };\n  }\n};\n\nconst response = $input.item.json;\n\nif (response.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: `API Error: ${response.error.message || JSON.stringify(response.error)}`,\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst rawText = extractTextFromResponse(response);\nif (!rawText) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: 'No text found in response',\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst cleanedText = cleanJsonText(rawText);\nconst parsed = parseMetadata(cleanedText);\n\nif (parsed.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: parsed.error,\n      valid: false,\n      rawText: parsed.rawText,\n      raw: parsed.raw\n    }\n  };\n}\n\nreturn {\n  json: {\n    youtube_title: parsed.youtube_title,\n    youtube_description: parsed.youtube_description,\n    error: null,\n    valid: !!(parsed.youtube_title && parsed.youtube_description),\n    raw: parsed.raw\n  }\n};"
+        "jsCode": "const extractTextFromResponse = (response) => {\n  if (Array.isArray(response) && response.length > 0) {\n    const firstItem = response[0];\n    const textPart = firstItem.content?.parts?.[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.candidates && response.candidates.length > 0) {\n    const textPart = response.candidates[0].content?.parts?.find(part => part.text);\n    if (textPart?.text) return textPart.text.trim();\n  }\n  if (response.content?.parts?.length > 0) {\n    const textPart = response.content.parts[0];\n    if (textPart?.text) return textPart.text.trim();\n  }\n  return null;\n};\n\nconst cleanJsonText = (text) => {\n  let cleaned = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  return jsonMatch ? jsonMatch[0] : cleaned;\n};\n\nconst parseMetadata = (text) => {\n  try {\n    const meta = JSON.parse(text);\n    if (!meta || typeof meta !== 'object') {\n      return { error: 'Parsed result is not an object', raw: meta };\n    }\n    return {\n      youtube_title: meta.youtube_title ? String(meta.youtube_title).trim() : '',\n      youtube_description: meta.youtube_description ? String(meta.youtube_description).trim() : '',\n      raw: meta\n    };\n  } catch (e) {\n    return { error: `Parse error: ${e.message}`, rawText: text.substring(0, 400) };\n  }\n};\n\nconst response = $input.item.json;\n\nif (response.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: `API Error: ${response.error.message || JSON.stringify(response.error)}`,\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst rawText = extractTextFromResponse(response);\nif (!rawText) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: 'No text found in response',\n      valid: false,\n      raw: response\n    }\n  };\n}\n\nconst cleanedText = cleanJsonText(rawText);\nconst parsed = parseMetadata(cleanedText);\n\nif (parsed.error) {\n  return {\n    json: {\n      youtube_title: '',\n      youtube_description: '',\n      error: parsed.error,\n      valid: false,\n      rawText: parsed.rawText,\n      raw: parsed.raw\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    youtube_title: parsed.youtube_title,\n    youtube_description: parsed.youtube_description,\n    error: null,\n    valid: !!(parsed.youtube_title && parsed.youtube_description),\n    raw: parsed.raw\n  }\n};"
       },
-      "id": "838322b4-eb92-44cd-a019-b6c59eb8157b",
+      "id": "5f49beb0-8964-4932-ad07-553c3d9b1612",
       "name": "Parse Metadata",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        640
+        -1600,
+        1648
       ],
       "continueOnFail": true
     },
@@ -27,10 +27,10 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -48,
-        -352
+        -2736,
+        672
       ],
-      "id": "8d2c271e-bd8a-4e93-9eb6-0619f565fb24",
+      "id": "112e57cc-e025-44a8-a843-22d20ac885ba",
       "name": "Trigger Lịch Trình"
     },
     {
@@ -44,16 +44,22 @@
           "mode": "name"
         },
         "options": {
-          "headerRow": 2
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRange",
+              "headerRow": 2,
+              "firstDataRow": 3
+            }
+          }
         }
       },
-      "id": "f7d93fe8-4ee2-4e98-bad0-84cdaffaf9d8",
+      "id": "a0ab0dfb-bcee-44f9-8fb5-414d68aaf9ce",
       "name": "Lấy Thông Tin Video",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        160,
-        -352
+        -2528,
+        672
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -65,44 +71,44 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const generateUuid = () => {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\n\nif (!row.id || !row.video_url) {\n  throw new Error('Missing required field: id or video_url');\n}\n\nreturn {\n  json: {\n    id: row.id,\n    video_title: row.video_title,\n    video_url: row.video_url,\n    driveUuid: generateUuid()\n  }\n};"
+        "jsCode": "const generateUuid = () => {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\n\nif (!row.id || !row.video_url) {\n  throw new Error('Missing required field: id or video_url');\n}\n\nreturn {\n  json: {\n    id: row.id,\n    video_title: row.video_title,\n    video_url: row.video_url,\n    driveUuid: generateUuid()\n  }\n};\n"
       },
-      "id": "c8013c46-b273-4695-ba77-3b6f461e3779",
+      "id": "93799711-cf0b-44f0-a63a-0350a86bec33",
       "name": "Trích Xuất URL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        848,
-        -32
+        -1840,
+        992
       ],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "command": "=yt-dlp --no-playlist --print \"%(title)s|%(uploader)s|%(description)s\" --no-warnings \"{{ $('Trích Xuất URL').item.json.video_url }}\" 2>/dev/null || echo \"ERROR|ERROR|ERROR\""
+        "command": "=mkdir -p /home/node/.local/bin\nif [ ! -f /home/node/.local/bin/yt-dlp ]; then\n  wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /home/node/.local/bin/yt-dlp\n  chmod +x /home/node/.local/bin/yt-dlp\nfi\nexport PATH=\"/home/node/.local/bin:$PATH\"\nyt-dlp --no-playlist --print \"%(title)s|%(uploader)s|%(description)s\" --no-warnings \"{{ $('Trích Xuất URL').item.json.video_url }}\" 2>/dev/null || echo \"ERROR|ERROR|ERROR\""
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1056,
-        -32
+        -1632,
+        992
       ],
-      "id": "c2ecd0fc-95ea-441e-8e3a-d3dca6eac262",
+      "id": "9e1027ee-c6db-462a-ac66-214ba1ec96bd",
       "name": "Lấy Metadata YouTube",
       "continueOnFail": true
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const parseYouTubeMetadata = (stdout) => {\n  if (!stdout) return { title: '', description: '' };\n  const parts = stdout.trim().split('|');\n  if (parts.length < 3) return { title: '', description: '' };\n  return {\n    title: parts[0].trim(),\n    description: parts[2].trim().substring(0, 500)\n  };\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\nconst extractResult = $('Lấy Metadata YouTube').item.json;\nconst extractUrl = $('Trích Xuất URL').item.json;\n\nconst ytMeta = parseYouTubeMetadata(extractResult.stdout);\nconst videoTitle = row.video_title && row.video_title.trim() ? row.video_title.trim() : ytMeta.title;\n\nif (!videoTitle) {\n  throw new Error('Cannot extract video title from YouTube');\n}\n\nreturn {\n  json: {\n    ...extractUrl,\n    video_title: videoTitle,\n    youtube_metadata: {\n      title: ytMeta.title,\n      description: ytMeta.description\n    }\n  }\n};"
+        "jsCode": "const parseYouTubeMetadata = (stdout) => {\n  if (!stdout) return { title: '', description: '' };\n  const parts = stdout.trim().split('|');\n  if (parts.length < 3) return { title: '', description: '' };\n  return {\n    title: parts[0].trim(),\n    description: parts[2].trim().substring(0, 500)\n  };\n};\n\nconst row = $('Lấy Thông Tin Video').item.json;\nconst extractResult = $('Lấy Metadata YouTube').item.json;\nconst extractUrl = $('Trích Xuất URL').item.json;\n\nconst ytMeta = parseYouTubeMetadata(extractResult.stdout);\nconst videoTitle = row.video_title && row.video_title.trim() ? row.video_title.trim() : ytMeta.title;\n\nif (!videoTitle) {\n  throw new Error('Cannot extract video title from YouTube');\n}\n\nreturn {\n  json: {\n    ...extractUrl,\n    video_title: videoTitle,\n    youtube_metadata: {\n      title: ytMeta.title,\n      description: ytMeta.description\n    }\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1312,
-        -32
+        -1392,
+        976
       ],
-      "id": "b4be59ec-829f-4ee6-a7e5-7d06ac3f86c1",
+      "id": "7d6e035f-7aef-4b84-ac78-3d3dde5cb244",
       "name": "Gộp Metadata",
       "continueOnFail": true
     },
@@ -113,24 +119,24 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1616,
-        -32
+        -864,
+        992
       ],
-      "id": "89109ae8-7411-4812-86e1-b4283ebcc909",
+      "id": "54813eed-37b6-4af0-aeab-5c0e2ef7b71c",
       "name": "Dọn File Cũ",
       "continueOnFail": true
     },
     {
       "parameters": {
-        "command": "=PATH=\"/home/node/.local/bin:$PATH\" yt-dlp --no-playlist -f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\" --merge-output-format mp4 --no-part -o \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" \"{{ $('Gộp Metadata').item.json.video_url }}\" 2>&1 || PATH=\"/home/node/.local/bin:$PATH\" yt-dlp --no-playlist -f \"best[ext=mp4]/best\" --merge-output-format mp4 --no-part -o \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" \"{{ $('Gộp Metadata').item.json.video_url }}\" 2>&1\n"
+        "command": "=mkdir -p /home/node/.local/bin\nif [ ! -f /home/node/.local/bin/yt-dlp ]; then\n  wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /home/node/.local/bin/yt-dlp\n  chmod +x /home/node/.local/bin/yt-dlp\nfi\nexport PATH=\"/home/node/.local/bin:$PATH\"\nyt-dlp --no-playlist -f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\" --merge-output-format mp4 --no-part -o \"/home/node/downloads/{{ $('Gộp Metadata').item.json.id }}.mp4\" \"{{ $('Gộp Metadata').item.json.video_url }}\" 2\u003e\u00261"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1840,
-        -32
+        -640,
+        992
       ],
-      "id": "b1eb2a3d-b51c-4c44-993a-fefe15321086",
+      "id": "df65d5de-5f65-41fc-a35e-043aec131135",
       "name": "Tải Video",
       "continueOnFail": true
     },
@@ -142,10 +148,10 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2112,
-        -32
+        -368,
+        992
       ],
-      "id": "65c100b5-a786-4be1-9e47-327e8a8d6f38",
+      "id": "3152bdd5-b9cb-42a3-a71d-386979843b9c",
       "name": "Đọc File Video",
       "continueOnFail": true
     },
@@ -157,10 +163,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2368,
-        -32
+        -112,
+        992
       ],
-      "id": "b59d641c-76e8-4472-8338-4147ba0afe8c",
+      "id": "3dfc685b-4feb-41fd-8d68-d3f990e9bc06",
       "name": "Xóa Binary Video",
       "continueOnFail": true
     },
@@ -171,10 +177,10 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        2624,
-        -32
+        144,
+        992
       ],
-      "id": "d4398a65-fb73-4ee1-a707-4b3cb7a5d73a",
+      "id": "e6cd320f-4fdc-40c3-a26c-212ebe5903b1",
       "name": "Trích Xuất Frame",
       "continueOnFail": true
     },
@@ -197,13 +203,13 @@
         },
         "options": {}
       },
-      "id": "563bfea5-61af-4ccf-b12a-3ca441759953",
+      "id": "2eea28b9-2e05-41ed-9b87-628176ab5269",
       "name": "Gửi Job Upload (API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1680,
-        272
+        -800,
+        1296
       ]
     },
     {
@@ -211,13 +217,13 @@
         "amount": 5,
         "unit": "seconds"
       },
-      "id": "e360fa3f-8aae-45dd-a337-4b3ffe831ae8",
+      "id": "ce0e61a3-e675-4811-a607-e060896dbdb5",
       "name": "Chờ Upload",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
       "position": [
-        1888,
-        272
+        -592,
+        1296
       ],
       "webhookId": "e4cfb9c1-e649-4493-9838-87a23c9aaae8"
     },
@@ -226,13 +232,13 @@
         "url": "=http://172.17.0.1:8000/api/v1/jobs/{{ $json.data.job_id }}",
         "options": {}
       },
-      "id": "bcea546f-98c2-4125-9d0a-a013595b362b",
+      "id": "9355abc4-f611-4cb0-affd-80aabfb68e65",
       "name": "Kiểm Tra Upload",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2080,
-        272
+        -400,
+        1296
       ]
     },
     {
@@ -246,13 +252,13 @@
           ]
         }
       },
-      "id": "25d2e0fe-f667-4150-94c5-8e75d67c3d72",
+      "id": "42e8fafe-695e-44a6-818e-c3f35d0612a1",
       "name": "Đã Upload Xong?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        2336,
-        272
+        -144,
+        1296
       ]
     },
     {
@@ -272,10 +278,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2592,
-        256
+        112,
+        1280
       ],
-      "id": "b8b94edd-af4e-4083-b425-c464981d9db9",
+      "id": "db0f3cae-c98d-4253-88c9-7dd17d23a5ba",
       "name": "Lấy Link Drive",
       "continueOnFail": true
     },
@@ -289,17 +295,15 @@
           "value": "Templates",
           "mode": "name"
         },
-        "options": {
-          "headerRow": 2
-        }
+        "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        1920,
-        -592
+        -560,
+        432
       ],
-      "id": "05d0a93d-091b-43bd-b52e-2c0ce88be766",
+      "id": "21db2ce1-2c61-4816-94fe-a5aa15534de3",
       "name": "Lấy Info Sau Upload",
       "executeOnce": false,
       "credentials": {
@@ -342,8 +346,8 @@
               "removed": false
             },
             {
-              "id": "processed_video_drive_link",
-              "displayName": "processed_video_drive_link",
+              "id": "Link File Đã Xử Lý (Auto)",
+              "displayName": "Link File Đã Xử Lý (Auto)",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -354,17 +358,15 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {
-          "headerRow": 2
-        }
+        "options": {}
       },
-      "id": "c33f8d3c-bb11-48e6-9549-8cc5904ef080",
+      "id": "44b9f885-aece-458a-8e73-ca30215e2c40",
       "name": "Cập Nhật Link Drive",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        2832,
-        256
+        352,
+        1280
       ],
       "executeOnce": false,
       "credentials": {
@@ -385,17 +387,15 @@
           "value": "Templates",
           "mode": "name"
         },
-        "options": {
-          "headerRow": 2
-        }
+        "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        3056,
-        240
+        576,
+        1264
       ],
-      "id": "044cfa50-0a2d-4503-92ea-e0c791f11f13",
+      "id": "888a46bb-09b2-4eda-b976-db0a745a88b3",
       "name": "Lấy Info Check YT",
       "executeOnce": false,
       "credentials": {
@@ -465,10 +465,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3392,
-        -304
+        912,
+        720
       ],
-      "id": "765fa956-0f91-4e9d-b6e9-46f4d09fe637",
+      "id": "d5e4c1ae-e0bc-4c06-b930-8b53efbebf3f",
       "name": "Check Upload YT (Sau Drive)",
       "continueOnFail": true
     },
@@ -487,13 +487,13 @@
         },
         "options": {}
       },
-      "id": "00526eb5-381c-4d5d-a710-96927dd55341",
+      "id": "d789e5ed-8baf-4f13-b20c-c5b19f9f113b",
       "name": "Phát Hiện Logo (API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2832,
-        -32
+        352,
+        992
       ],
       "continueOnFail": true
     },
@@ -504,10 +504,10 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        864,
-        -720
+        -1824,
+        304
       ],
-      "id": "04ca2bd9-5b21-4229-b95b-a94dfdea0e38",
+      "id": "083448a8-060c-49ff-87a5-1163a6a46ead",
       "name": "Tải Video Đã Xử Lý",
       "continueOnFail": true
     },
@@ -519,10 +519,10 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1120,
-        -784
+        -1568,
+        240
       ],
-      "id": "cd1b673c-6848-46c2-b7d6-5014f3e02d9f",
+      "id": "c100b8c6-6bdc-4b05-8f7d-c441bab269c8",
       "name": "Đọc Video Upload",
       "alwaysOutputData": true,
       "continueOnFail": true
@@ -530,15 +530,15 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const normalizeBoolean = (value) => {\n  if (value === undefined || value === null) return false;\n  const normalized = String(value).trim().toLowerCase();\n  return normalized === 'true' || normalized === '1' || normalized === 'yes';\n};\n\nconst fixMimeType = (mimeType) => {\n  if (mimeType === 'application/mp4' || mimeType === 'application/x-mp4') {\n    return 'video/mp4';\n  }\n  return mimeType;\n};\n\nconst videoInfo = $('Lấy Thông Tin Video').first().json;\nconst currentItem = $input.item;\n\nif (!currentItem.binary || !currentItem.binary.data) {\n  throw new Error('No video binary found from \"Read Processed Video For YouTube\"');\n}\n\nconst binaryData = currentItem.binary.data;\nif (!binaryData.data && !binaryData.mimeType) {\n  throw new Error('Invalid binary data structure');\n}\n\nreturn {\n  json: {\n    ...videoInfo,\n    id: videoInfo.id || currentItem.json.id,\n    enable_youtube_upload_normalized: normalizeBoolean(videoInfo.enable_youtube_upload),\n    enable_youtube_upload_should_upload: normalizeBoolean(videoInfo.enable_youtube_upload)\n  },\n  binary: {\n    data: {\n      ...binaryData,\n      mimeType: fixMimeType(binaryData.mimeType)\n    }\n  }\n};"
+        "jsCode": "const normalizeBoolean = (value) => {\n  if (value === undefined || value === null) return false;\n  const normalized = String(value).trim().toLowerCase();\n  return normalized === 'true' || normalized === '1' || normalized === 'yes';\n};\n\nconst fixMimeType = (mimeType) => {\n  if (mimeType === 'application/mp4' || mimeType === 'application/x-mp4') {\n    return 'video/mp4';\n  }\n  return mimeType;\n};\n\nconst videoInfo = $('Lấy Thông Tin Video').first().json;\nconst currentItem = $input.item;\n\nif (!currentItem.binary || !currentItem.binary.data) {\n  throw new Error('No video binary found from \"Read Processed Video For YouTube\"');\n}\n\nconst binaryData = currentItem.binary.data;\nif (!binaryData.data && !binaryData.mimeType) {\n  throw new Error('Invalid binary data structure');\n}\n\nreturn {\n  json: {\n    ...videoInfo,\n    id: videoInfo.id || currentItem.json.id,\n    enable_youtube_upload_normalized: normalizeBoolean(videoInfo.enable_youtube_upload),\n    enable_youtube_upload_should_upload: normalizeBoolean(videoInfo.enable_youtube_upload)\n  },\n  binary: {\n    data: {\n      ...binaryData,\n      mimeType: fixMimeType(binaryData.mimeType)\n    }\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1312,
-        -784
+        -1168,
+        240
       ],
-      "id": "c634e329-3a94-4cd2-a99a-23200950b804",
+      "id": "4e26b5f7-a500-4fe0-91b0-ecca6d3df39d",
       "name": "Gộp Data Upload YT",
       "continueOnFail": true
     },
@@ -570,10 +570,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1552,
-        -784
+        -928,
+        240
       ],
-      "id": "c29bef0a-7833-4fd0-b0eb-328e6472a858",
+      "id": "82390e61-bcee-4a0f-8ea6-b0dfc04f78f1",
       "name": "Check Điều Kiện Upload",
       "continueOnFail": true
     },
@@ -593,10 +593,10 @@
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
       "position": [
-        1312,
-        -592
+        -1168,
+        432
       ],
-      "id": "20a036a6-718a-4788-904b-a54deb3a9032",
+      "id": "35cf0f7d-b275-4834-a797-3445806dc2ee",
       "name": "Upload YouTube",
       "credentials": {
         "youTubeOAuth2Api": {
@@ -614,10 +614,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        -592
+        -960,
+        432
       ],
-      "id": "f2b1715b-88ff-4722-9119-b1bb9ac341be",
+      "id": "dd0636a8-185b-4349-9e94-6929625739dd",
       "name": "Xóa Binary Upload",
       "continueOnFail": true
     },
@@ -715,17 +715,15 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {
-          "headerRow": 2
-        }
+        "options": {}
       },
-      "id": "ea327062-6267-43e4-9521-db3bd5a6fd30",
+      "id": "9c55e078-9cf7-4653-8fd1-05f4aa39ad6a",
       "name": "Cập Nhật Trạng Thái Cuối",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        1712,
-        -592
+        -768,
+        432
       ],
       "executeOnce": false,
       "credentials": {
@@ -795,11 +793,57 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        624,
-        -352
+        -2064,
+        672
       ],
-      "id": "16987b51-702c-4d15-9173-60645063bc00",
+      "id": "27865304-09d1-412f-a54a-60cd640b3b59",
       "name": "Publish video",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-youtube-title",
+              "leftValue": "={{ $json.youtube_title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "has-youtube-description",
+              "leftValue": "={{ $json.youtube_description }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1900,
+        500
+      ],
+      "id": "check-metadata-node-id",
+      "name": "Check Metadata",
       "continueOnFail": true
     },
     {
@@ -949,13 +993,13 @@
         },
         "options": {}
       },
-      "id": "f009762a-ac61-4ec6-9cef-d035a0481f07",
+      "id": "860938f2-4f65-4c27-a429-e5b59018f36f",
       "name": "Gửi Job Xử Lý (API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        3088,
-        -32
+        608,
+        992
       ]
     },
     {
@@ -963,13 +1007,13 @@
         "amount": 10,
         "unit": "seconds"
       },
-      "id": "800449b5-cd2e-4786-bac4-3bdacc9250c4",
+      "id": "20d9c859-cc3a-4a45-a829-fe3ee32dcc60",
       "name": "Chờ Xử Lý",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
       "position": [
-        1056,
-        288
+        -1632,
+        1312
       ],
       "webhookId": "7a513790-5ad5-420c-8a90-c5b4d06ee557"
     },
@@ -978,13 +1022,13 @@
         "url": "=http://172.17.0.1:8000/api/v1/jobs/{{ $json.data.job_id }}",
         "options": {}
       },
-      "id": "57650ed9-1b9b-47d0-a32f-2769a70376ab",
+      "id": "a50020bd-65a1-4079-98b7-f84e5d2ed536",
       "name": "Kiểm Tra Trạng Thái",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1248,
-        288
+        -1440,
+        1312
       ]
     },
     {
@@ -998,13 +1042,13 @@
           ]
         }
       },
-      "id": "014646a8-a920-47f9-9224-58de93f32386",
+      "id": "4709a605-0579-4500-afc3-f195099d1d34",
       "name": "Đã Xử Lý Xong?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        1440,
-        288
+        -1040,
+        1312
       ]
     },
     {
@@ -1014,10 +1058,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        384,
-        -352
+        -2304,
+        672
       ],
-      "id": "b6065c43-8b9d-4e3d-b5ce-8c56802d08e3",
+      "id": "93e6c997-11c4-43a3-bc73-6d24941039a1",
       "name": "Vòng Lặp Video"
     },
     {
@@ -1025,13 +1069,13 @@
         "mode": "runOnceForEachItem",
         "jsCode": "const STATUS = {\n  SUCCESS: 'success',\n  ERROR: 'error',\n  NONE: 'none'\n};\n\nconst getNodeResult = (nodeName) => {\n  const node = $(nodeName);\n  if (!node || !node.isExecuted) return null;\n  return node.first();\n};\n\nconst extractUploadId = (uploadItem) => {\n  if (!uploadItem || uploadItem.error || !uploadItem.json) return null;\n  const json = uploadItem.json;\n  if (Array.isArray(json) && json.length > 0) return json[0].uploadId;\n  if (typeof json === 'object' && json !== null) return json.uploadId;\n  return null;\n};\n\nconst extractYouTubeLink = () => {\n  const uploadItem = getNodeResult('Upload To YouTube');\n  if (!uploadItem) return '';\n  const videoId = extractUploadId(uploadItem);\n  if (!videoId) return '';\n  const trimmedId = String(videoId).trim();\n  return trimmedId ? `https://www.youtube.com/watch?v=${trimmedId}` : '';\n};\n\nconst checkNodeError = (nodeName) => {\n  const item = getNodeResult(nodeName);\n  if (!item) return null;\n  if (item.error) return item.error.message;\n  \n  if (item.json && item.json.stderr) {\n    const stderr = String(item.json.stderr);\n    \n    if (stderr.includes('ffmpeg version')) {\n      const lines = stderr.split('\\n');\n      const errorLines = lines.filter(line => \n        line.toLowerCase().includes('error') || \n        line.toLowerCase().includes('failed') ||\n        line.toLowerCase().includes('cannot') ||\n        line.toLowerCase().includes('invalid')\n      );\n      if (errorLines.length > 0) {\n        return errorLines.join('\\n').substring(0, 300);\n      }\n      if (item.json.exitCode && item.json.exitCode !== 0) {\n        return 'FFmpeg execution failed';\n      }\n      return null;\n    }\n    \n    if (stderr.includes('--') && (stderr.includes('wget') || stderr.includes('HTTP'))) {\n      const lines = stderr.split('\\n');\n      const errorLines = lines.filter(line => \n        line.toUpperCase().includes('ERROR') || \n        line.toLowerCase().includes('failed') ||\n        line.includes('404') ||\n        line.includes('403') ||\n        line.includes('500') ||\n        line.toLowerCase().includes('not found')\n      );\n      if (errorLines.length > 0) {\n        return errorLines.join('\\n').substring(0, 300);\n      }\n      if (item.json.exitCode && item.json.exitCode !== 0) {\n        return 'Download failed';\n      }\n      return null;\n    }\n    \n    return stderr.substring(0, 300);\n  }\n  \n  if (item.json && item.json.exitCode && item.json.exitCode !== 0) {\n    return 'Node execution failed';\n  }\n  \n  return null;\n};\n\nconst getDriveLinkFromNode = () => {\n  const driveLinkItem = getNodeResult('Get Drive Link');\n  if (!driveLinkItem || driveLinkItem.error || !driveLinkItem.json || !driveLinkItem.json.stdout) return null;\n  return String(driveLinkItem.json.stdout).trim();\n};\n\nconst getTimestamp = () => {\n  return new Date().toLocaleString('vi-VN', {\n    timeZone: 'Asia/Ho_Chi_Minh',\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n    hour: '2-digit',\n    minute: '2-digit',\n    second: '2-digit'\n  });\n};\n\nconst getCurrentVideoInfo = () => {\n  const currentItem = $input.item;\n  \n  if (currentItem && currentItem.json && currentItem.json.id) {\n    return currentItem.json;\n  }\n  \n  const getVideoInfoAfterUpload = $('Lấy Info Sau Upload');\n  if (getVideoInfoAfterUpload && getVideoInfoAfterUpload.isExecuted) {\n    const item = getVideoInfoAfterUpload.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const getVideoInfoForCheck = $('Lấy Info Check YT');\n  if (getVideoInfoForCheck && getVideoInfoForCheck.isExecuted) {\n    const item = getVideoInfoForCheck.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const mergeData = $('Gộp Data Upload YT');\n  if (mergeData && mergeData.isExecuted) {\n    const item = mergeData.first();\n    if (item && item.json && item.json.id) {\n      return item.json;\n    }\n  }\n  \n  const getVideoInfo = $('Lấy Thông Tin Video');\n  if (getVideoInfo && getVideoInfo.isExecuted) {\n    const allItems = getVideoInfo.all();\n    if (allItems && allItems.length > 0) {\n      const currentId = currentItem?.json?.id;\n      if (currentId) {\n        const matchedItem = allItems.find(item => item.json && item.json.id === currentId);\n        if (matchedItem) return matchedItem.json;\n      }\n      const loopItems = $('Vòng Lặp Video');\n      if (loopItems && loopItems.isExecuted) {\n        const loopItem = loopItems.first();\n        if (loopItem && loopItem.json && loopItem.json.id) {\n          const matchedItem = allItems.find(item => item.json && item.json.id === loopItem.json.id);\n          if (matchedItem) return matchedItem.json;\n        }\n      }\n      return allItems[0].json;\n    }\n  }\n  \n  return null;\n};\n\nconst videoInfo = getCurrentVideoInfo() || $('Lấy Thông Tin Video').first().json;\nconst youtubeLink = extractYouTubeLink();\nconst driveLink = getDriveLinkFromNode() || videoInfo.processed_video_drive_link;\n\nconst checkAlreadyProcessed = () => {\n  const setResultStatusNode = $('Tổng Hợp Kết Quả');\n  if (!setResultStatusNode || !setResultStatusNode.isExecuted) return false;\n  const allResults = setResultStatusNode.all();\n  if (!allResults || allResults.length === 0) return false;\n  const currentId = videoInfo.id;\n  if (!currentId) return false;\n  const processedIds = allResults\n    .map(item => item.json && item.json.id)\n    .filter(id => id && id === currentId);\n  return processedIds.length > 0;\n};\n\nif (checkAlreadyProcessed()) {\n  return {\n    json: {\n      status: STATUS.NONE,\n      errorMessage: '',\n      id: videoInfo.id,\n      videoTitle: videoInfo.video_title || videoInfo.youtube_title,\n      videoUrl: videoInfo.video_url,\n      driveLink,\n      youtubeLink,\n      publishStatus: videoInfo.publish_status ? String(videoInfo.publish_status).toLowerCase() : '',\n      timestamp: getTimestamp(),\n      skip: true\n    }\n  };\n}\n\nconst errorNodes = ['Process Video', 'Download Video', 'Upload to Drive', 'Get Drive Link', 'Insert Background Intro', 'Download Processed Video From Drive', 'Extract Frame', 'Read Processed Video For YouTube', 'Merge Data For YouTube Check'];\nconst uploadError = checkNodeError('Upload To YouTube');\nconst execErrors = errorNodes.map(node => checkNodeError(node)).filter(e => e);\nconst firstError = uploadError || execErrors[0];\n\nconst status = firstError ? STATUS.ERROR : (youtubeLink ? STATUS.SUCCESS : STATUS.NONE);\nconst errorMessage = firstError ? String(firstError).substring(0, 300) : '';\n\nreturn {\n  json: {\n    status,\n    errorMessage,\n    id: videoInfo.id,\n    videoTitle: videoInfo.video_title || videoInfo.youtube_title,\n    videoUrl: videoInfo.video_url,\n    driveLink,\n    youtubeLink,\n    publishStatus: videoInfo.publish_status ? String(videoInfo.publish_status).toLowerCase() : '',\n    timestamp: getTimestamp()\n  }\n};"
       },
-      "id": "c5ef40ff-6385-44bc-8069-955cf06ee53f",
+      "id": "cc3fed7e-9cbc-4025-aece-3486ffeaf0f5",
       "name": "Tổng Hợp Kết Quả",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2288,
-        -592
+        -192,
+        432
       ],
       "continueOnFail": true
     },
@@ -1049,10 +1093,10 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.3,
       "position": [
-        2720,
-        -1008
+        240,
+        16
       ],
-      "id": "40319831-1491-4d76-9dc1-5ef9b0d9be51",
+      "id": "9a8ccee9-4c49-4a46-b298-fc7a7cd20c0a",
       "name": "Gửi Slack",
       "executeOnce": true,
       "webhookId": "ee2d48b4-7741-4eda-be7e-f299880b5106",
@@ -1070,10 +1114,10 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        2112,
-        -784
+        -368,
+        240
       ],
-      "id": "90688a5f-f984-413d-8c9e-2f7c5ebbb0db",
+      "id": "6eff1e78-773e-4031-81ea-0f4ec8590dbf",
       "name": "Tải Thumbnail",
       "continueOnFail": true
     },
@@ -1085,10 +1129,10 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2320,
-        -784
+        -160,
+        240
       ],
-      "id": "e7f1db8a-a6ab-414c-85d3-5fb7ed2ef585",
+      "id": "9f4d9192-b1fb-41b5-a5b6-3bc2c6039825",
       "name": "Đọc Thumbnail",
       "alwaysOutputData": true,
       "continueOnFail": true
@@ -1101,10 +1145,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1136,
-        -592
+        -1552,
+        432
       ],
-      "id": "cb0dc65b-d415-4cc9-b221-79214e13e6da",
+      "id": "74897dff-f209-4f85-82f6-b144c788fb8f",
       "name": "Gộp Binary Thumbnail",
       "continueOnFail": true
     },
@@ -1137,17 +1181,67 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1840,
-        -784
+        -640,
+        240
       ],
-      "id": "99e3e10d-088a-4117-9553-f8fa7bf6b87c",
+      "id": "8e931fbf-644b-4350-af34-d8174b36843d",
       "name": "Check Thumbnail",
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Bạn là chuyên gia tối ưu hóa metadata YouTube. Nhiệm vụ của bạn là tạo tiêu đề và mô tả YouTube mới dựa trên video_title đầu vào.\n\nDỮ LIỆU ĐẦU VÀO:\nvideo_title: ={{ $json.video_title }}\n\n========================================\nYÊU CẦU BẮT BUỘC CHO TIÊU ĐỀ (youtube_title)\n========================================\n- Độ dài: CHÍNH XÁC 60-100 ký tự (tính toàn bộ ký tự, bao gồm khoảng trắng)\n- Tiêu đề phải hấp dẫn, thu hút click và tối ưu SEO\n- Phải chứa từ khóa chính liên quan đến video_title đầu vào\n- Dùng Title Case hoặc Sentence Case (một kiểu duy nhất)\n- KHÔNG được dùng emoji hoặc ký tự đặc biệt (ngoại trừ dấu chấm, phẩy, dấu gạch)\n- Không được thừa khoảng trắng ở đầu hoặc cuối\n\n========================================\nYÊU CẦU BẮT BUỘC CHO MÔ TẢ (youtube_description)\n========================================\n- Độ dài: 200-5000 ký tự (tối thiểu 200, tối ưu 500-2000)\n- 2-3 dòng đầu phải chứa từ khóa chính của video_title và thu hút người xem\n- Nội dung phải liên quan chặt chẽ tới video, mô tả rõ ràng giá trị video\n- Có thể thêm lời kêu gọi hành động (Subscribe, Like)\n- Có thể thêm timestamp, link, hoặc hashtag (3-10 hashtag) nếu phù hợp\n- Sử dụng ký tự \\n để xuống dòng (không xuống dòng thật)\n- Không được thừa khoảng trắng ở đầu hoặc cuối\n\n========================================\nYÊU CẦU VỀ ĐỊNH DẠNG OUTPUT (CỰC KỲ QUAN TRỌNG - SẼ ĐƯỢC PARSE BẰNG JSON.parse())\n========================================\nBạn PHẢI trả về DUY NHẤT một JSON object hợp lệ có đúng 2 trường:\n\n{\"youtube_title\":\"...\",\"youtube_description\":\"...\"}\n\nQUY ĐỊNH NGHIÊM NGẶT:\n- KHÔNG được dùng markdown code blocks (```json, ```)\n- KHÔNG có văn bản giải thích bên ngoài JSON\n- KHÔNG có comment trong JSON (//, /* */)\n- KHÔNG có trailing comma\n- KHÔNG được trả về array ([{...}])\n- KHÔNG được thêm bất kỳ trường nào khác\n- Tất cả giá trị phải là string, dùng dấu nháy kép \"\n- Escape special characters đúng cách: \\\" cho quotes, \\\\ cho backslash, \\n cho newline\n- JSON phải hợp lệ và parse được bằng JSON.parse()\n- Field names PHẢI chính xác: \"youtube_title\" và \"youtube_description\" (lowercase, underscore)\n\nVÍ DỤ FORMAT ĐÚNG:\n{\"youtube_title\":\"This Is An Example YouTube Title That Is Between 60 And 100 Characters Long\",\"youtube_description\":\"This is an example description that must be at least 200 characters long to meet the requirements. It should include relevant keywords and be engaging for viewers. You can add more content here to reach the minimum character count. This description should provide value and encourage viewers to watch the video.\"}\n\n========================================\nĐIỀU KIỆN BẮT BUỘC PHẢI ĐẠT\n========================================\n- youtube_title: 60-100 ký tự (inclusive), non-empty string\n- youtube_description: 200-5000 ký tự (inclusive), non-empty string\n- Cả hai field đều bắt buộc, không được null hoặc undefined\n- KHÔNG được dùng emoji\n- Response phải parse được bằng JSON.parse() không lỗi\n\n========================================\nHÃY TIẾN HÀNH TẠO TIÊU ĐỀ VÀ MÔ TẢ NGAY BÂY GIỜ.\nCHỈ TRẢ VỀ ĐÚNG JSON OBJECT, KHÔNG THÊM BẤT KỲ THỨ GÌ KHÁC.\nKHÔNG CÓ MARKDOWN, KHÔNG CÓ GIẢI THÍCH, CHỈ CÓ JSON OBJECT THUẦN TÚY.\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        1568
+      ],
+      "id": "4112ddab-f41d-4b3f-abb4-9352d3794ea2",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "H1JSwNE1NdapUMQa",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     }
   ],
   "pinData": {},
   "connections": {
     "Publish video": {
+      "main": [
+        [
+          {
+            "node": "Check Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trích Xuất URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Metadata": {
       "main": [
         [
           {
@@ -1158,7 +1252,7 @@
         ],
         [
           {
-            "node": "Trích Xuất URL",
+            "node": "Message a model",
             "type": "main",
             "index": 0
           }
@@ -1225,11 +1319,6 @@
         [
           {
             "node": "Dọn File Cũ",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Parse Metadata",
             "type": "main",
             "index": 0
           }
@@ -1445,8 +1534,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Đọc Video Upload": {
@@ -1479,8 +1567,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Tải Thumbnail": {
@@ -1604,14 +1691,37 @@
           }
         ]
       ]
+    },
+    "Parse Metadata": {
+      "main": [
+        [
+          {
+            "node": "Tải Video Đã Xử Lý",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "5f875ff2-0306-4a8c-95fd-0f24f1656b80",
+  "versionId": "003a81f7-1cb2-4cff-b36e-a179e509a8c7",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "85d7322ab387263001b31b703ad4747f32bd4ef2ff67525ffd22eeafb96c1d17"
   },
   "id": "qV46dY3qT0KsSziC",
